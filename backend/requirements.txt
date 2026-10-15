@@ -5,4 +5,4 @@ PyJWT>=2.7
 cryptography>=42
 uvicorn>=0.29
 pytest>=8
-pillow>=10
+pillow>=12.3.0

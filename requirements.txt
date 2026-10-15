@@ -1,6 +1,6 @@
 # Pipeline and tests
 playwright>=1.40
-pillow>=10
+pillow>=12.3.0
 pytest>=7
 ruff>=0.6
 # Backend and web server: pip install -r backend/requirements.txt
