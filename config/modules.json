@@ -1,0 +1,544 @@
+{
+ "editions": {
+  "training": {
+   "description": "Platform plus guided lessons, narration and coaching.",
+   "kinds": [
+    "platform",
+    "i18n",
+    "training"
+   ],
+   "flags": {},
+   "narration": true,
+   "title": {
+    "en": "AIFirstMart hands-on training",
+    "ta": "AIFirstMart நேரடிப் பயிற்சி"
+   }
+  },
+  "platform": {
+   "description": "The retail platform only, no training content.",
+   "kinds": [
+    "platform",
+    "i18n",
+    "platform-only"
+   ],
+   "flags": {
+    "AFM_NO_TRAINING": true
+   },
+   "narration": false,
+   "title": {
+    "en": "AIFirstMart retail platform",
+    "ta": "AIFirstMart சில்லறை தளம்"
+   }
+  }
+ },
+ "languages": {
+  "en": {
+   "name": "English"
+  },
+  "ta": {
+   "name": "Tamil",
+   "narration_files": 2
+  }
+ },
+ "styles": [
+  {
+   "id": "01-style",
+   "file": "src/styles/01-style.css"
+  },
+  {
+   "id": "02-movable-training",
+   "file": "src/styles/02-movable-training.css"
+  },
+  {
+   "id": "03-process-coach",
+   "file": "src/styles/03-process-coach.css"
+  },
+  {
+   "id": "04-channelstage",
+   "file": "src/styles/04-channelstage.css"
+  },
+  {
+   "id": "05-pimtabs",
+   "file": "src/styles/05-pimtabs.css"
+  },
+  {
+   "id": "06-orderstats",
+   "file": "src/styles/06-orderstats.css"
+  },
+  {
+   "id": "07-languagecards",
+   "file": "src/styles/07-languagecards.css"
+  },
+  {
+   "id": "08-viewtoggle",
+   "file": "src/styles/08-viewtoggle.css"
+  },
+  {
+   "id": "09-deliveryhero",
+   "file": "src/styles/09-deliveryhero.css"
+  },
+  {
+   "id": "10-queuevalidation",
+   "file": "src/styles/10-queuevalidation.css"
+  },
+  {
+   "id": "11-exceptiononly",
+   "file": "src/styles/11-exceptiononly.css"
+  },
+  {
+   "id": "12-logtoolbar",
+   "file": "src/styles/12-logtoolbar.css"
+  },
+  {
+   "id": "13-overlay",
+   "file": "src/styles/13-overlay.css"
+  },
+  {
+   "id": "14-ops-tabs",
+   "file": "src/styles/14-ops-tabs.css"
+  },
+  {
+   "id": "15-omsnav",
+   "file": "src/styles/15-omsnav.css"
+  },
+  {
+   "id": "16-persona-switch",
+   "file": "src/styles/16-persona-switch.css"
+  },
+  {
+   "id": "17-stocktabs",
+   "file": "src/styles/17-stocktabs.css"
+  },
+  {
+   "id": "18-import-methods",
+   "file": "src/styles/18-import-methods.css"
+  },
+  {
+   "id": "19-closure-tabs",
+   "file": "src/styles/19-closure-tabs.css"
+  },
+  {
+   "id": "20-module-shortcuts",
+   "file": "src/styles/20-module-shortcuts.css"
+  },
+  {
+   "id": "21-policycard",
+   "file": "src/styles/21-policycard.css"
+  },
+  {
+   "id": "22-assurance-grid",
+   "file": "src/styles/22-assurance-grid.css"
+  },
+  {
+   "id": "23-proofgrid",
+   "file": "src/styles/23-proofgrid.css"
+  },
+  {
+   "id": "24-process-cockpit",
+   "file": "src/styles/24-process-cockpit.css"
+  },
+  {
+   "id": "25-training-banner",
+   "file": "src/styles/25-training-banner.css"
+  },
+  {
+   "id": "26-voice-coach",
+   "file": "src/styles/26-voice-coach.css"
+  },
+  {
+   "id": "27-teacher-card",
+   "file": "src/styles/27-teacher-card.css"
+  },
+  {
+   "id": "28-expert-coach",
+   "file": "src/styles/28-expert-coach.css"
+  },
+  {
+   "id": "29-action-lab",
+   "file": "src/styles/29-action-lab.css"
+  },
+  {
+   "id": "30-action-map",
+   "file": "src/styles/30-action-map.css"
+  },
+  {
+   "id": "31-style",
+   "file": "src/styles/31-style.css"
+  },
+  {
+   "id": "32-lesson-story",
+   "file": "src/styles/32-lesson-story.css"
+  }
+ ],
+ "modules": [
+  {
+   "id": "lang-default",
+   "kind": "platform",
+   "file": "src/modules/platform/lang-default.js",
+   "description": "Sets the starting language on first visit (from the build flags)."
+  },
+  {
+   "id": "core-pos",
+   "kind": "platform",
+   "file": "src/modules/platform/core-pos.js",
+   "description": "Core app: language strings, the till (Sell), basket, payments, receipts, screens and navigation."
+  },
+  {
+   "id": "channel-cart-legacy",
+   "kind": "platform",
+   "file": "src/modules/platform/channel-cart-legacy.js",
+   "description": "Original Mobile App and WhatsApp channel screens (removed at start by channel-screens-strip)."
+  },
+  {
+   "id": "channel-screens-strip",
+   "kind": "platform",
+   "file": "src/modules/platform/channel-screens-strip.js",
+   "description": "Removes the original Mobile App and WhatsApp screens (replaced by Customer shop)."
+  },
+  {
+   "id": "catalogue-pim",
+   "kind": "platform",
+   "file": "src/modules/platform/catalogue-pim.js",
+   "description": "Original product information screen (catalogue page layout)."
+  },
+  {
+   "id": "orders-nav",
+   "kind": "platform",
+   "file": "src/modules/platform/orders-nav.js",
+   "description": "Adds Orders to the navigation and its first screen."
+  },
+  {
+   "id": "product-translations",
+   "kind": "platform",
+   "file": "src/modules/platform/product-translations.js",
+   "description": "Tamil and Kannada product names."
+  },
+  {
+   "id": "orders-view",
+   "kind": "platform",
+   "file": "src/modules/platform/orders-view.js",
+   "description": "Orders list: rows and tiles, assignment."
+  },
+  {
+   "id": "orders-status-legacy",
+   "kind": "platform",
+   "file": "src/modules/platform/orders-status-legacy.js",
+   "description": "Older order status helpers (kept for compatibility)."
+  },
+  {
+   "id": "orders-status",
+   "kind": "platform",
+   "file": "src/modules/platform/orders-status.js",
+   "description": "Order status texts and expanded order details."
+  },
+  {
+   "id": "delivery-nav",
+   "kind": "platform",
+   "file": "src/modules/platform/delivery-nav.js",
+   "description": "Adds Delivery to the navigation."
+  },
+  {
+   "id": "logistics-nav",
+   "kind": "platform",
+   "file": "src/modules/platform/logistics-nav.js",
+   "description": "Logistics screen and fulfilment rules."
+  },
+  {
+   "id": "order-exceptions",
+   "kind": "platform",
+   "file": "src/modules/platform/order-exceptions.js",
+   "description": "Order exceptions (unavailable items, substitutions)."
+  },
+  {
+   "id": "logistics-workspace",
+   "kind": "platform",
+   "file": "src/modules/platform/logistics-workspace.js",
+   "description": "Logistics workspace: partner and store views, tracking."
+  },
+  {
+   "id": "operations-state",
+   "kind": "platform",
+   "file": "src/modules/platform/operations-state.js",
+   "description": "Shared operations state and integration events."
+  },
+  {
+   "id": "functional-closure",
+   "kind": "platform",
+   "file": "src/modules/platform/functional-closure.js",
+   "description": "Working dialogs for many screens (approvals, stock count, receiving, shift close...)."
+  },
+  {
+   "id": "oms",
+   "kind": "platform",
+   "file": "src/modules/platform/oms.js",
+   "description": "Order management: queue, sourcing, reservations, shipments, cancellations, returns, refunds, rules."
+  },
+  {
+   "id": "persona-shell",
+   "kind": "platform",
+   "file": "src/modules/platform/persona-shell.js",
+   "description": "Roles (View as), role workspaces, navigation by role."
+  },
+  {
+   "id": "stock",
+   "kind": "platform",
+   "file": "src/modules/platform/stock.js",
+   "description": "Stock screens: overview, receipts, register, transfers."
+  },
+  {
+   "id": "catalogue-import-methods",
+   "kind": "platform",
+   "file": "src/modules/platform/catalogue-import-methods.js",
+   "description": "Catalogue import methods (Excel, invoice, barcode)."
+  },
+  {
+   "id": "pilot-gap-closure",
+   "kind": "platform",
+   "file": "src/modules/platform/pilot-gap-closure.js",
+   "description": "Operational controls that write to the audit trail."
+  },
+  {
+   "id": "pilot-promotion",
+   "kind": "platform",
+   "file": "src/modules/platform/pilot-promotion.js",
+   "description": "Promotes pilot workflows into permanent modules."
+  },
+  {
+   "id": "round2-closure",
+   "kind": "platform",
+   "file": "src/modules/platform/round2-closure.js",
+   "description": "Role alignment, weighed items at the till, transfer lifecycle, audit policy."
+  },
+  {
+   "id": "assurance-closure",
+   "kind": "platform",
+   "file": "src/modules/platform/assurance-closure.js",
+   "description": "Finance validation, unified customer, store scope, observability."
+  },
+  {
+   "id": "defect-closure",
+   "kind": "platform",
+   "file": "src/modules/platform/defect-closure.js",
+   "description": "Simulation labels and governance evidence."
+  },
+  {
+   "id": "business-processes",
+   "kind": "platform",
+   "file": "src/modules/platform/business-processes.js",
+   "description": "Role process cockpit on the Command center."
+  },
+  {
+   "id": "practice-environment",
+   "kind": "training",
+   "file": "src/modules/training/practice-environment.js",
+   "description": "Separate practice environment: no training action reaches a production backend."
+  },
+  {
+   "id": "voice-coach",
+   "kind": "training",
+   "file": "src/modules/training/voice-coach.js",
+   "description": "Voice Coach follows the guided flow. Speech starts only after a learner action."
+  },
+  {
+   "id": "teacher-curriculum",
+   "kind": "training",
+   "file": "src/modules/training/teacher-curriculum.js",
+   "description": "Teacher-led curriculum for novice shop stakeholders: explain, relate, demonstrate, then practise."
+  },
+  {
+   "id": "expert-coaching",
+   "kind": "training",
+   "file": "src/modules/training/expert-coaching.js",
+   "description": "In-workspace expert coaching: the workspace is a visual aid, never a script to read aloud."
+  },
+  {
+   "id": "action-lab",
+   "kind": "training",
+   "file": "src/modules/training/action-lab.js",
+   "description": "Recursive Action Lab: teach the business situation, then require the learner to click the real control."
+  },
+  {
+   "id": "action-map",
+   "kind": "training",
+   "file": "src/modules/training/action-map.js",
+   "description": "Action Map comes before clicking: explain button, activity, situation, prerequisite, example, result and handoff."
+  },
+  {
+   "id": "training-exports",
+   "kind": "training",
+   "file": "src/modules/training/training-exports.js",
+   "description": "window.TRAINING_EN={teacherSummary,trainingSummary,teacherHub,trainingCenter,orientationLesson,teacherLesson,lesson,coachScript,labContext,b"
+  },
+  {
+   "id": "tamil-teacher",
+   "kind": "training",
+   "file": "src/modules/training/tamil-teacher.js",
+   "description": "முழுமையான தமிழ் ஆசிரியர் பதிப்பு."
+  },
+  {
+   "id": "tamil-voice-coach",
+   "kind": "training",
+   "file": "src/modules/training/tamil-voice-coach.js",
+   "description": "Tamil-native storytelling voice coach. Never fall back to an English voice for Tamil."
+  },
+  {
+   "id": "apply-language",
+   "kind": "platform",
+   "file": "src/modules/platform/apply-language.js",
+   "description": "Applies the chosen language to the page."
+  },
+  {
+   "id": "audio-fallback",
+   "kind": "training",
+   "file": "src/modules/training/audio-fallback.js",
+   "description": "Tesla and embedded-browser audio fallback when Web Speech is unavailable."
+  },
+  {
+   "id": "packaged-narration",
+   "kind": "training",
+   "file": "src/modules/training/packaged-narration.js",
+   "description": "Packaged, same-origin narration for Tesla and standard browsers."
+  },
+  {
+   "id": "context-curriculum",
+   "kind": "training",
+   "file": "src/modules/training/context-curriculum.js",
+   "description": "Context-aligned curriculum: the visible lesson and packaged narration are identical."
+  },
+  {
+   "id": "orientation-recordings",
+   "kind": "training",
+   "file": "src/modules/training/orientation-recordings.js",
+   "description": "Each shop-flow screen has its own matching, same-origin recording."
+  },
+  {
+   "id": "ta-screens",
+   "kind": "i18n",
+   "file": "src/modules/i18n/ta-screens.js",
+   "description": "Tamil for the original screens: role canvases and exact phrases."
+  },
+  {
+   "id": "movable-windows",
+   "kind": "training",
+   "file": "src/modules/training/movable-windows.js",
+   "description": "Movable training windows, shared by lessons and workspace coaches."
+  },
+  {
+   "id": "guided-workflow",
+   "kind": "training",
+   "file": "src/modules/training/guided-workflow.js",
+   "description": "Final guided-workflow layer: follow business sequence, keep exceptions separate, and localize the entire lab."
+  },
+  {
+   "id": "ta-coach",
+   "kind": "i18n",
+   "file": "src/modules/i18n/ta-coach.js",
+   "description": "Tamil word-level translation helpers for the original screens."
+  },
+  {
+   "id": "business-sequence",
+   "kind": "training",
+   "file": "src/modules/training/business-sequence.js",
+   "description": "Business-sequence training for every operational workspace, plus complete Tamil learning copy."
+  },
+  {
+   "id": "ta-coach-copy",
+   "kind": "i18n",
+   "file": "src/modules/i18n/ta-coach-copy.js",
+   "description": "More Tamil phrases for the original screens."
+  },
+  {
+   "id": "process-guidance",
+   "kind": "training",
+   "file": "src/modules/training/process-guidance.js",
+   "description": "Guide actual business state; all valid controls remain usable."
+  },
+  {
+   "id": "action-explanations",
+   "kind": "training",
+   "file": "src/modules/training/action-explanations.js",
+   "description": "Action explanations are selected by business operation, not screen position."
+  },
+  {
+   "id": "channels",
+   "kind": "platform",
+   "file": "src/modules/platform/channels.js",
+   "description": "Channels screen (WhatsApp, app, Facebook, Amazon, Flipkart, ONDC) and Customer sign-in."
+  },
+  {
+   "id": "catalogue",
+   "kind": "platform",
+   "file": "src/modules/platform/catalogue.js",
+   "description": "Editable catalogue: edit dialog, images, paste, price cells, import review, database save."
+  },
+  {
+   "id": "orders-rows",
+   "kind": "platform",
+   "file": "src/modules/platform/orders-rows.js",
+   "description": "Orders and Logistics records as expandable rows."
+  },
+  {
+   "id": "access-policy",
+   "kind": "platform",
+   "file": "src/modules/platform/access-policy.js",
+   "description": "Access policy: role matrix, users and roles, limits, temporary access, maker-checker."
+  },
+  {
+   "id": "guided-training",
+   "kind": "training",
+   "file": "src/modules/training/guided-training.js",
+   "description": "Guided lessons engine and English course text (cashier, manager, owner, administrator)."
+  }
+ ],
+ "addons": [
+  {
+   "id": "fixes",
+   "kind": "platform",
+   "slot": "addons-before-guided",
+   "file": "src/modules/addons/fixes.js",
+   "description": "Header role and store, online status, named audit actors, duplicate barcode guard, shared user list, file downloads."
+  },
+  {
+   "id": "phase2",
+   "kind": "platform",
+   "slot": "addons-before-guided",
+   "dir": "src/modules/addons/phase2",
+   "description": "Refunds, customer shop and plans, price tools, exports, accessibility, training records (off in the platform edition). Parts are joined in name order inside one scope."
+  },
+  {
+   "id": "backoffice-course",
+   "kind": "training",
+   "slot": "addons-end",
+   "file": "src/modules/addons/backoffice-course.js",
+   "description": "Back office and customers course (4 lessons)."
+  },
+  {
+   "id": "storefront-images",
+   "kind": "platform",
+   "slot": "addons-end",
+   "file": "src/modules/addons/storefront-images.js",
+   "description": "Catalogue photos on every storefront and the till."
+  },
+  {
+   "id": "ta-ui-data",
+   "kind": "i18n",
+   "slot": "addons-end",
+   "generated": "ta-ui-data",
+   "description": "Tamil screen dictionary, generated from src/i18n/ta/ui.json."
+  },
+  {
+   "id": "tamil-screens",
+   "kind": "i18n",
+   "slot": "addons-end",
+   "file": "src/modules/addons/tamil-screens.js",
+   "description": "Applies the Tamil dictionary to the newer screens (whole sentences, kept numbers and codes)."
+  },
+  {
+   "id": "platform-cleanup",
+   "kind": "platform-only",
+   "slot": "addons-end",
+   "file": "src/modules/addons/platform-cleanup.js",
+   "description": "Removes any training affordance from the platform edition."
+  }
+ ]
+}

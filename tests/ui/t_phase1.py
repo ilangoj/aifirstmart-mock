@@ -1,0 +1,56 @@
+import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from _page import PAGE, RESULT
+import asyncio, json, sys
+from playwright.async_api import async_playwright
+URL=PAGE
+R=[]
+def rec(item, ok, detail=''): R.append({'item':item,'pass':bool(ok),'detail':detail}); print(('PASS' if ok else 'FAIL'), item, '|', detail)
+async def main():
+    async with async_playwright() as p:
+        b=await p.chromium.launch(); pg=await b.new_page(viewport={'width':1440,'height':900})
+        errs=[]; pg.on('pageerror',lambda e: errs.append(str(e)[:90]+' @ '+((e.stack or '').split('\n')[1].strip()[:70] if e.stack and '\n' in e.stack else '')))
+        await pg.goto(URL); await pg.wait_for_timeout(1500)
+        await pg.evaluate("()=>{try{AFMGuidedTraining.close()}catch(e){};localStorage.removeItem('afm-functional-v1')}"); await pg.reload(); await pg.wait_for_timeout(1500)
+        await pg.evaluate("()=>{try{AFMGuidedTraining.close()}catch(e){}}")
+        if await pg.evaluate("()=>lang")!='en': await pg.select_option('#language','en'); await pg.wait_for_timeout(900)
+        W=lambda ms=350: pg.wait_for_timeout(ms)
+        roles=await pg.evaluate("()=>[...document.querySelectorAll('#personaSelect option')].map(o=>o.value)")
+        errs.clear(); bad={}; heads={}
+        for r in roles:
+            n=len(errs); await pg.select_option('#personaSelect',r); await W(450)
+            heads[r]=await pg.evaluate("()=>document.querySelector('.top .store').innerText.replace(/\\n/g,' / ')")
+            if len(errs)>n: bad[r]=errs[n:]
+        rec('Switching to every role raises no page errors', not bad, f'{len(roles)} roles; errors: {bad}' if bad else f'{len(roles)} roles, 0 errors')
+        lab=await pg.evaluate("()=>({cashier:personaLabel('cashier'),owner:personaLabel('owner'),pricing:personaLabel('pricing')})")
+        ok=all(heads[k].startswith(lab[k]) for k in lab) and heads['cashier'].endswith('Ulundurpet Main Store') and heads['owner'].endswith('All stores')
+        rec('Header shows the role being viewed and its scope', ok, f"cashier → '{heads['cashier']}', owner → '{heads['owner']}', pricing → '{heads['pricing']}'")
+        await pg.select_option('#personaSelect','cashier'); await W(); await pg.click('#side [data-nav="sell"]'); await W(500)
+        st=await pg.evaluate("()=>({off:closureState.offline,pill:document.querySelector('.top [data-t=online]').textContent,chip:(document.querySelector('[data-sellops] .scopechip b')||{}).textContent})")
+        rec('Header status matches the till (offline)', st['off'] and st['pill'].startswith('Offline') and st['chip']=='Offline (practice)', f"till offline={st['off']}, header '{st['pill']}', Sell chip '{st['chip']}'")
+        await pg.evaluate("()=>{closureState.offline=false;closureState.offlineQueued=0}"); await W(400)
+        pill=await pg.evaluate("()=>document.querySelector('.top [data-t=online]').textContent")
+        rec('Header status matches the till (after reconnect)', pill=='Online', f"header '{pill}'")
+        await pg.select_option('#personaSelect','manager'); await W()
+        await pg.evaluate("()=>auditEvent('Test','Phase 1 check','actor naming')")
+        a1=await pg.evaluate("()=>functionalState.audit[0].actor")
+        await pg.select_option('#personaSelect','owner'); await W(); await pg.evaluate("()=>auditEvent('Test','Phase 1 check','owner')")
+        a2=await pg.evaluate("()=>functionalState.audit[0].actor")
+        await pg.click('#side [data-nav="audit"]'); await W(400)
+        shown=await pg.evaluate("()=>document.querySelector('#audit .audit-row small').textContent")
+        rec('Audit trail names the person and role', a1=='Raj · Store manager' and a2=='Business owner' and 'Current operator' not in shown, f"manager → '{a1}', owner → '{a2}', audit screen shows '{shown}'")
+        await pg.select_option('#personaSelect','catalogue'); await W(); await pg.click('#side [data-nav="catalogue"]'); await W(400)
+        await pg.click('#catalogue [data-a="addProduct"]'); await W(); await pg.fill('#pcBar','8901002'); await pg.fill('#pcName','Copy of milk'); await pg.fill('#pcPrice','30'); await pg.click('#createProduct'); await W()
+        t1=await pg.text_content('#toast'); n1=await pg.evaluate("()=>items.filter(x=>x.id==='8901002').length")
+        await pg.fill('#pcBar','8901777'); await pg.fill('#pcName','Aavin Curd 400g'); await pg.click('#createProduct'); await W(500)
+        n2=await pg.evaluate("()=>items.filter(x=>x.id==='8901777').length")
+        rec('Add product refuses a duplicate barcode, accepts a new one', n1==1 and 'already belongs to Aavin Milk' in t1 and n2==1, f"duplicate → '{t1[:70]}'; new barcode created: {n2==1}")
+        await pg.select_option('#personaSelect','admin'); await W(); await pg.click('#side [data-nav="setup"]'); await W(400)
+        await pg.click('#setup [data-a="users"]'); await W(400)
+        note=await pg.evaluate("()=>!!document.querySelector('#overlay.show [data-policy-link]')")
+        raj=await pg.evaluate("()=>functionalState.users.find(u=>u.name==='Raj').role")
+        await pg.fill('#userName','Divya'); await pg.select_option('#userRole','Cashier'); await pg.click('#addUserComplete'); await W(600)
+        div=await pg.evaluate("()=>{const u=AFMPolicy.state().users.find(u=>u.name==='Divya');return u?{status:u.status,stores:u.stores,roles:u.roles}:null}")
+        rec('Setup and Access policy share one list of people', note and raj=='Store manager' and div and div['status']=='Invited', f"link shown: {note}; Raj in Setup: '{raj}'; Divya in Access policy: {div}")
+        json.dump(R,open(RESULT,'w'),indent=1)
+        await b.close()
+asyncio.run(main())

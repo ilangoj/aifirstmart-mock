@@ -1,0 +1,107 @@
+# Continuous integration: every push and pull request (STANDARD.md section 6.5).
+name: ci
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}"}
+      - run: pip install "ruff>=0.6"
+      - run: ruff check .
+
+  i18n:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}"}
+      - run: python afm.py i18n check
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}"}
+      - name: Build every page
+        run: python afm.py build
+      - name: Build again and compare (builds must be deterministic)
+        run: |
+          find dist -type f -exec sha256sum {} + | sort -k2 > first.sha
+          rm -rf dist && python afm.py build > /dev/null
+          find dist -type f -exec sha256sum {} + | sort -k2 > second.sha
+          diff first.sha second.sha
+      - uses: actions/upload-artifact@v4
+        with: {name: pages, path: dist/, retention-days: 14}
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}", cache: pip}
+      - run: pip install -r requirements.txt -r backend/requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python afm.py build
+      - name: All browser checks, backend and server tests
+        run: python afm.py test
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: test-results, path: tests/results/, retention-days: 14}
+
+  changelog:
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - name: Code or config changed means CHANGELOG.md changed
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(src|pipeline|config|backend|server|deploy|tests)/|^afm\.py$' \
+             && ! echo "$changed" | grep -qx 'CHANGELOG.md'; then
+            echo "::error::Add a line under '## Unreleased' in CHANGELOG.md (STANDARD.md section 6.6)"; exit 1
+          fi
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}", cache: pip}
+      - name: Build the container image
+        run: docker build -f deploy/Dockerfile -t aifirstmart-mock:ci .
+      - name: Start it with throwaway secrets
+        run: |
+          docker run -d --name afm -p 8080:8080 \
+            -e AFM_JWT_SECRET="$(python -c 'import secrets;print(secrets.token_urlsafe(48))')" \
+            -e AFM_VAULT_MASTER_KEY="$(python -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')" \
+            -e AFM_PLATFORM_ADMIN_PASSWORD="$(python -c 'import secrets;print(secrets.token_urlsafe(18))')" \
+            aifirstmart-mock:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 2; done
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - name: Health, API and every page
+        run: python afm.py verify --url http://127.0.0.1:8080
+      - if: failure()
+        run: docker logs afm

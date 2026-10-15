@@ -1,0 +1,8 @@
+# Text files are stored with LF line endings, so builds are byte-identical on Windows, macOS and Linux
+* text=auto eol=lf
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.onnx binary
+*.pth binary

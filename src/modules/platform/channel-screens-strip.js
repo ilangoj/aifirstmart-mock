@@ -1,0 +1,1 @@
+function stripCustomerChannels(){document.querySelectorAll('[data-nav="mobileapp"],[data-nav="whatsapp"]').forEach(x=>x.remove());document.querySelector('#mobileapp')?.remove();document.querySelector('#whatsapp')?.remove()}document.querySelector('#language').addEventListener('change',()=>setTimeout(stripCustomerChannels,20));stripCustomerChannels();

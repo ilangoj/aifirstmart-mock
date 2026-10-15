@@ -1,0 +1,119 @@
+{
+ "_about": "Which pages each test checks, and which modules it covers. `python afm.py test --module X` runs every test that lists X.",
+ "tests": {
+  "t_phase1": {
+   "pages": [
+    "training/en",
+    "platform/en"
+   ],
+   "modules": [
+    "fixes",
+    "access-policy",
+    "catalogue",
+    "persona-shell"
+   ],
+   "checks": "Header role and store, online status, named audit actors, duplicate barcodes, shared user list"
+  },
+  "t_phase23": {
+   "pages": [
+    "training/en"
+   ],
+   "modules": [
+    "phase2",
+    "access-policy",
+    "catalogue",
+    "core-pos"
+   ],
+   "checks": "Refunds and limits, one policy everywhere, customer shop, price tools, exports, accessibility, training records"
+  },
+  "t_images": {
+   "pages": [
+    "training/en",
+    "platform/en"
+   ],
+   "modules": [
+    "storefront-images",
+    "catalogue",
+    "phase2"
+   ],
+   "checks": "Catalogue photos on web shop, mobile app, WhatsApp, cart and till"
+  },
+  "t_plans": {
+   "pages": [
+    "training/en",
+    "platform/en"
+   ],
+   "modules": [
+    "phase2",
+    "channels"
+   ],
+   "checks": "Mobile app and WhatsApp grouped by Immediate delivery, Weekly plan, Monthly plan"
+  },
+  "t_course": {
+   "pages": [
+    "training/en"
+   ],
+   "modules": [
+    "backoffice-course",
+    "guided-training",
+    "phase2"
+   ],
+   "checks": "Back office course walked end to end"
+  },
+  "t_smoke": {
+   "pages": [
+    "training/en"
+   ],
+   "modules": [
+    "guided-training",
+    "backoffice-course",
+    "narration"
+   ],
+   "checks": "Every lesson opens; every step has English narration"
+  },
+  "t_tamil": {
+   "pages": [
+    "training/ta"
+   ],
+   "modules": [
+    "tamil-screens",
+    "ta-ui-data",
+    "ta-screens",
+    "ta-coach",
+    "guided-training",
+    "narration"
+   ],
+   "checks": "Tamil lessons, Tamil narration, newer screens in Tamil, language switch"
+  },
+  "t_tamil_walk": {
+   "pages": [
+    "training/ta"
+   ],
+   "modules": [
+    "tamil-screens",
+    "ta-ui-data",
+    "guided-training",
+    "phase2",
+    "channels",
+    "catalogue"
+   ],
+   "checks": "Four new lessons completed in Tamil"
+  },
+  "t_platform": {
+   "pages": [
+    "platform/en"
+   ],
+   "modules": [
+    "platform-cleanup",
+    "fixes",
+    "phase2",
+    "tamil-screens",
+    "ta-ui-data",
+    "ta-coach",
+    "persona-shell",
+    "business-processes"
+   ],
+   "checks": "No training content; every role and screen in English and Tamil; core flows; no \"undefined\" or \"NaN\" on any screen"
+  }
+ }
+}

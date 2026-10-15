@@ -1,0 +1,14 @@
+# What the image build leaves out (Docker reads this file because it sits beside deploy/Dockerfile)
+.git
+.github
+.env
+.env.*
+!.env.example
+dist
+site
+tests
+tools
+**/__pycache__
+**/.pytest_cache
+**/*.sqlite
+*.zip
