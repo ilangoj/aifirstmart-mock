@@ -1,0 +1,47 @@
+# Release: push a tag v<MAJOR.MINOR.PATCH> that matches VERSION (STANDARD.md section 6.6).
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write      # create the GitHub Release
+  packages: write      # push the image to ghcr.io
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12", cache: pip}
+      - name: The tag matches VERSION
+        run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)" || { echo "::error::Tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)"; exit 1; }
+      - run: pip install -r requirements.txt -r backend/requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python afm.py i18n check
+      - run: python afm.py build
+      - name: Full test suite
+        run: python afm.py test
+      - name: Zip the editions and the source
+        run: |
+          V=$(cat VERSION)
+          (cd dist && zip -qr "../aifirstmart-training-$V.zip" training && zip -qr "../aifirstmart-platform-$V.zip" platform)
+          python afm.py package --name "aifirstmart-mock-$V-source"
+          mv "../aifirstmart-mock-$V-source.zip" .
+      - name: Release notes from CHANGELOG.md
+        run: |
+          V=$(cat VERSION)
+          awk -v v="## $V " 'index($0, v)==1 {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md" > notes.md
+      - name: Create the GitHub Release
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: gh release create "$GITHUB_REF_NAME" --title "AIFirstMart mock $GITHUB_REF_NAME" --notes-file notes.md ./*.zip
+      - uses: docker/login-action@v3
+        with: {registry: ghcr.io, username: "${{ github.actor }}", password: "${{ github.token }}"}
+      - name: Build and push the image
+        run: |
+          V=$(cat VERSION); IMG=ghcr.io/${GITHUB_REPOSITORY,,}
+          docker build -f deploy/Dockerfile -t "$IMG:$V" -t "$IMG:latest" .
+          docker push "$IMG:$V" && docker push "$IMG:latest"

@@ -1,0 +1,2 @@
+
+window.TRAINING_EN={teacherSummary,trainingSummary,teacherHub,trainingCenter,orientationLesson,teacherLesson,lesson,coachScript,labContext,businessActivity,showActionMap,narrateActionMap};

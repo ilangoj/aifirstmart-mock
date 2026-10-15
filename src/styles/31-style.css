@@ -1,0 +1,5 @@
+
+@font-face{font-family:'AIFM Tamil';font-style:normal;font-weight:400;font-display:swap;src:url('https://fonts.gstatic.com/s/notosanstamil/v31/ieVc2YdFI3GCY6SyQy1KfStzYKZgzN1z4LKDbeZce-0429tBManUktuex7vGo70R.ttf') format('truetype')}
+@font-face{font-family:'AIFM Tamil';font-style:normal;font-weight:700 900;font-display:swap;src:url('https://fonts.gstatic.com/s/notosanstamil/v31/ieVc2YdFI3GCY6SyQy1KfStzYKZgzN1z4LKDbeZce-0429tBManUktuex7shpL0R.ttf') format('truetype')}
+html[lang^="ta"] body,html[lang^="ta"] body *{font-family:'AIFM Tamil','Noto Sans Tamil','Latha','Arial Unicode MS',system-ui,sans-serif}
+html[lang^="ta"] .logo,html[lang^="ta"] .coach-face{font-family:system-ui,'AIFM Tamil',sans-serif}

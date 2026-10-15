@@ -1,0 +1,2 @@
+
+.module-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:13px 0}.module-shortcut{padding:14px}.module-shortcut h3{margin:0 0 5px}.module-shortcut p{margin:0 0 10px;color:var(--muted);font-size:13px}.module-section{margin-top:13px}.compact-state{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.compact-state .badge{font-size:12px}.module-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}@media(max-width:850px){.module-shortcuts{grid-template-columns:1fr}}

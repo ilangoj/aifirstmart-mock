@@ -1,0 +1,102 @@
+{
+  "_about": [
+    "Deployment targets for `python afm.py deploy --target NAME` (STANDARD.md section 8).",
+    "Placeholders {name} are filled from --set name=value, then the environment variable AFM_DEPLOY_<NAME>, then the target's defaults, then the common defaults below.",
+    "`builtin` targets run Python code in pipeline/deploy.py. Other targets run `commands` in order, or, when `check` is given: `check` decides between `update` (it succeeds) and `create` (it fails).",
+    "`external: true` means the target changes something outside this computer: the commands are shown and confirmed before they run.",
+    "Never put secret values here or in --set. Cloud targets read secrets from the provider's secret store by name or ARN.",
+    "The cloud commands follow each provider's documentation as of October 2026; check them against the current documentation before the first real run."
+  ],
+  "defaults": {
+    "service": "aifirstmart",
+    "editions": "training,platform",
+    "api": "true",
+    "image": "{registry}/aifirstmart-mock:{version}"
+  },
+  "targets": {
+    "local": {
+      "description": "This computer, without Docker: build the pages, then run the server",
+      "needs": "Python with backend/requirements.txt installed",
+      "builtin": "local",
+      "defaults": {"host": "127.0.0.1", "port": "8080"}
+    },
+    "docker": {
+      "description": "This computer, in the container (docker compose), data kept in a volume",
+      "needs": "Docker with the compose plugin",
+      "prepare": ["env-file"],
+      "commands": [
+        "docker compose --env-file .env -f deploy/docker-compose.yml up --build -d"
+      ],
+      "after": "Open http://127.0.0.1:8080 (or the AFM_HOST_PORT in .env). Stop: docker compose --env-file .env -f deploy/docker-compose.yml down"
+    },
+    "static": {
+      "description": "The built pages and a start page as plain files, for any static file host (no API)",
+      "needs": "Nothing",
+      "builtin": "static",
+      "defaults": {"out": "site"}
+    },
+    "image": {
+      "description": "Build the container image and push it to a registry",
+      "needs": "Docker, signed in to the registry (docker login)",
+      "external": true,
+      "required": ["registry"],
+      "commands": [
+        "docker build --build-arg AFM_EDITIONS={editions} -f deploy/Dockerfile -t {image} .",
+        "docker push {image}"
+      ],
+      "notes": "registry examples: ghcr.io/ilangoj, asia-south1-docker.pkg.dev/<project>/<repo>, <account>.dkr.ecr.<region>.amazonaws.com, <name>.azurecr.io"
+    },
+    "cloudrun": {
+      "description": "Google Cloud Run: deploy the image as a Cloud Run service (creates or updates)",
+      "needs": "gcloud, signed in; the image pushed to Artifact Registry (target image); three secrets in Secret Manager",
+      "external": true,
+      "required": ["project", "registry"],
+      "defaults": {"region": "asia-south1"},
+      "commands": [
+        "gcloud run deploy {service} --project {project} --region {region} --image {image} --port 8080 --allow-unauthenticated --set-env-vars AFM_ENV=production,AFM_ENABLE_API={api} --set-secrets AFM_JWT_SECRET=afm-jwt-secret:latest,AFM_VAULT_MASTER_KEY=afm-vault-master-key:latest,AFM_PLATFORM_ADMIN_PASSWORD=afm-admin-password:latest"
+      ],
+      "notes": "Create the secrets afm-jwt-secret, afm-vault-master-key and afm-admin-password in Secret Manager first, and let the service account read them. Cloud Run has no persistent disk: backend data is lost on restart (STANDARD.md 8.4)."
+    },
+    "ecs": {
+      "description": "Amazon ECS Express Mode: create the service (Fargate, load balancer, scaling) from the image",
+      "needs": "aws CLI v2, signed in; the image pushed to ECR (target image); the task execution role and the Express infrastructure role; three secrets in Secrets Manager",
+      "external": true,
+      "required": ["registry", "execution_role_arn", "infrastructure_role_arn", "jwt_secret_arn", "vault_key_arn", "admin_password_arn"],
+      "defaults": {"region": "ap-south-1"},
+      "commands": [
+        "aws ecs create-express-gateway-service --region {region} --service-name {service} --execution-role-arn {execution_role_arn} --infrastructure-role-arn {infrastructure_role_arn} --health-check-path /healthz --primary-container '{\"image\":\"{image}\",\"containerPort\":8080,\"environment\":[{\"name\":\"AFM_ENV\",\"value\":\"production\"},{\"name\":\"AFM_ENABLE_API\",\"value\":\"{api}\"}],\"secrets\":[{\"name\":\"AFM_JWT_SECRET\",\"valueFrom\":\"{jwt_secret_arn}\"},{\"name\":\"AFM_VAULT_MASTER_KEY\",\"valueFrom\":\"{vault_key_arn}\"},{\"name\":\"AFM_PLATFORM_ADMIN_PASSWORD\",\"valueFrom\":\"{admin_password_arn}\"}]}'"
+      ],
+      "notes": "The execution role must be allowed to read the three secrets. To roll out a new image to an existing service: aws ecs update-express-gateway-service --service-arn <arn> --primary-container '{...}'. No persistent disk: backend data is lost on restart (STANDARD.md 8.4)."
+    },
+    "azure": {
+      "description": "Azure Container Apps: create the container app, or update its image if it exists",
+      "needs": "az CLI with the containerapp extension, signed in; a Container Apps environment; the image in Azure Container Registry; a user-assigned identity that can pull from the registry and read the Key Vault secrets",
+      "external": true,
+      "required": ["resource_group", "environment", "registry", "identity", "key_vault_url"],
+      "check": "az containerapp show --name {service} --resource-group {resource_group} --output none",
+      "create": [
+        "az containerapp create --name {service} --resource-group {resource_group} --environment {environment} --image {image} --target-port 8080 --ingress external --registry-server {registry_server} --registry-identity {identity} --user-assigned {identity} --secrets jwt-secret=keyvaultref:{key_vault_url}/secrets/afm-jwt-secret,identityref:{identity} vault-key=keyvaultref:{key_vault_url}/secrets/afm-vault-master-key,identityref:{identity} admin-password=keyvaultref:{key_vault_url}/secrets/afm-admin-password,identityref:{identity} --env-vars AFM_ENV=production AFM_ENABLE_API={api} AFM_JWT_SECRET=secretref:jwt-secret AFM_VAULT_MASTER_KEY=secretref:vault-key AFM_PLATFORM_ADMIN_PASSWORD=secretref:admin-password"
+      ],
+      "update": [
+        "az containerapp update --name {service} --resource-group {resource_group} --image {image}"
+      ],
+      "defaults": {"registry_server": "{registry}"},
+      "notes": "registry is the ACR login server, e.g. aifirstmart.azurecr.io; identity is the user-assigned identity's resource id; key_vault_url is e.g. https://<vault>.vault.azure.net. Container Apps has no persistent disk by default: backend data is lost on restart (STANDARD.md 8.4)."
+    },
+    "server": {
+      "description": "Your own Linux server: copy deploy/ and .env, pull the image, restart it",
+      "needs": "SSH access (key-based) to the server; Docker with the compose plugin on the server, signed in to the registry",
+      "external": true,
+      "required": ["host", "registry"],
+      "prepare": ["env-file"],
+      "defaults": {"dir": "aifirstmart"},
+      "commands": [
+        "ssh {host} \"mkdir -p {dir}/deploy\"",
+        "scp deploy/docker-compose.yml {host}:{dir}/deploy/docker-compose.yml",
+        "scp .env {host}:{dir}/.env",
+        "ssh {host} \"cd {dir} && chmod 600 .env && AFM_IMAGE={image} docker compose --env-file .env -f deploy/docker-compose.yml pull && AFM_IMAGE={image} docker compose --env-file .env -f deploy/docker-compose.yml up -d --no-build\""
+      ],
+      "notes": "host is user@address. Publish the image first (target image, or a release pushes it to ghcr.io/ilangoj). Put a reverse proxy with HTTPS (Caddy, nginx) in front of port 8080."
+    }
+  }
+}

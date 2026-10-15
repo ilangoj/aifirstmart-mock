@@ -1,0 +1,30 @@
+# Built and generated (rebuild with python afm.py build)
+dist/
+site/
+tests/results/
+*.zip
+
+# Secrets and local settings (STANDARD.md section 7)
+.env
+.env.*
+!.env.example
+
+# Voice models (download, see tools/tts/README.md)
+tools/tts/*
+!tools/tts/README.md
+
+# Data written by a local backend
+*.sqlite
+*.sqlite3
+
+# Python and editors
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

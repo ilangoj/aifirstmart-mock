@@ -1,0 +1,1 @@
+try{if(!localStorage.getItem('afm-lang'))localStorage.setItem('afm-lang',window.AFM_DEFAULT_LANG||'en')}catch(e){}

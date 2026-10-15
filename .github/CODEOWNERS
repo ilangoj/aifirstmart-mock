@@ -1,0 +1,9 @@
+# Changes to these paths request the owner's review (STANDARD.md sections 6.4 and 12).
+# With branch protection "Require review from Code Owners", they cannot merge without it.
+*.md                @ilangoj
+/config/            @ilangoj
+/deploy/            @ilangoj
+/server/            @ilangoj
+/.github/           @ilangoj
+/.env.example       @ilangoj
+/VERSION            @ilangoj
