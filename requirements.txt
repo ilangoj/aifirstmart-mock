@@ -2,7 +2,7 @@
 playwright>=1.40
 pillow>=10
 pytest>=7
-ruff>=0.6
+ruff>=0.17.0
 # Backend and web server: pip install -r backend/requirements.txt
 # Narration (only for `afm.py narrate record`; see STANDARD.md step 4)
 #   English: kokoro-onnx lameenc numpy
