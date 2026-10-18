@@ -29,7 +29,8 @@ python afm.py test                        # every browser check and the backend 
 ```bash
 cp .env.example .env                              # then set the secrets in .env
 python afm.py deploy --target docker              # pages at http://127.0.0.1:8080, API at /api/docs
-python afm.py deploy --list                       # local, docker, static, image, cloudrun, ecs, azure, server
+python afm.py deploy --target database            # PostgreSQL in Docker with the schema and synthetic data
+python afm.py deploy --list                       # local, docker, database, static, image, cloudrun, ecs, azure, server
 ```
 
 The same container image runs on any host that runs containers; see STANDARD.md section 8.

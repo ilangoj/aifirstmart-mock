@@ -65,8 +65,9 @@ aifirstmart-mock/
 ├── server/
 │   └── app.py                 The web server: built pages at /, the backend API at /api, health at /healthz
 ├── deploy/
-│   ├── Dockerfile             One image: builds the pages, then runs the server
-│   └── docker-compose.yml     Run that image locally, with a data volume and your .env
+│   ├── Dockerfile             One image: builds the pages, then runs the server (stage db-tools: database steps)
+│   ├── docker-compose.yml     Run that image locally, with a data volume and your .env; PostgreSQL (profile db)
+│   └── db-init/               Runs once when the PostgreSQL container is first created (the afm_app role)
 ├── src/                       Everything the pages are built from (edit here)
 │   ├── shell/index.html       The page skeleton: markup with named placeholders
 │   ├── styles/*.css           Style sheets, in load order (NN- prefix)
@@ -342,6 +343,7 @@ python afm.py deploy --list                          # the targets in config/dep
 python afm.py deploy --target local                  # this computer, no Docker: http://127.0.0.1:8080
 python afm.py deploy --target docker                 # this computer, in the container
 python afm.py deploy --target static --out site/     # the four pages as plain files, for any static host
+python afm.py deploy --target database               # PostgreSQL in Docker, with the schema and synthetic data
 python afm.py deploy --target cloudrun --set project=my-gcp-project --set region=asia-south1
 python afm.py verify --url http://127.0.0.1:8080     # health check and every page, against any address
 ```
@@ -357,10 +359,22 @@ Publish the built files from `dist/`: the English training page alone; the Tamil
 
 ### Step 12 — `db`: database schema and synthetic data
 
+The quickest way to a working database is one command, with Docker on your computer:
+
+```bash
+python afm.py deploy --target database        # PostgreSQL 16 + schema + synthetic data + checks
+```
+
+It creates `AFM_DB_PASSWORD` in `.env` if needed, starts PostgreSQL in Docker (reachable from this computer only, at
+`postgresql://afm:<AFM_DB_PASSWORD>@127.0.0.1:5432/afm`), then runs the steps below in a container. Running it again
+keeps the data; `docker compose --env-file .env -f deploy/docker-compose.yml --profile db down -v` starts empty.
+For a larger data set, add `--set scale=medium`. Any other PostgreSQL works the same way with the steps below:
+
 ```bash
 export AFM_DATABASE_URL=postgresql://afm:password@127.0.0.1:5432/afm
 python afm.py db migrate                      # apply new files from db/migrations/, in number order
-python afm.py db seed --scale small           # synthetic data into an empty database (small, medium, large)
+python afm.py db seed --scale small           # synthetic data into an empty database (small, medium, large);
+                                              # --if-empty skips quietly when data exists
 python afm.py db check                        # the platform's rules, checked against the data
 python afm.py db status                       # migrations applied, row counts
 python afm.py db reset --yes                  # empty the database (refused when AFM_ENV=production)
@@ -449,6 +463,7 @@ Runs on every push to a branch and on every pull request:
 | `build` | `python afm.py build`, then builds again and compares | A page fails to build, or two builds differ |
 | `test` | `python afm.py test` (all browser checks and backend tests) | Any check fails |
 | `db` | PostgreSQL 16 service: `db migrate`, `db seed`, `db check`, then `pytest tests/db` | A migration fails, a rule is broken, or a database test fails |
+| `db-docker` | `deploy --target database` twice, then queries over the published port | The one-command setup fails, repeats work, or isolation is off |
 | `changelog` | Compares the branch with `main` | Code, config or source changed without a `CHANGELOG.md` entry |
 | `image` | `docker build -f deploy/Dockerfile .` and a `/healthz` check | The container does not build or start |
 
@@ -491,6 +506,8 @@ all of them; copy it to `.env` for local use. `.env` is never committed.
 | `AFM_DB_PATH` | backend | in memory | A file on a persistent volume, e.g. `/data/afm.sqlite` |
 | `AFM_GOOGLE_CLIENT_IDS` | backend | empty | Comma-separated OAuth client ids |
 | `AFM_DATABASE_URL` | `afm.py db` | none | **Secret** (contains the password). The PostgreSQL address |
+| `AFM_DB_PASSWORD` | `database` target | created by `deploy` | **Secret.** Password of the PostgreSQL container's `afm` user |
+| `AFM_DB_HOST_PORT` | `database` target | `5432` | Port on this computer (127.0.0.1 only) for the PostgreSQL container |
 | `AFM_TEST_DATABASE_URL` | `tests/db` | none | A separate database the tests may empty; never production |
 
 Secrets live in the host's secret store (GitHub Actions secrets, Google Secret Manager, AWS Secrets Manager, Azure
@@ -530,6 +547,7 @@ variables, then from the target's defaults. Adding a cloud means adding an entry
 |---|---|---|---|
 | `local` | This computer | Python | Builds, then runs the server without Docker on port 8080 |
 | `docker` | This computer | Docker | `docker compose -f deploy/docker-compose.yml up --build`; data kept in a volume |
+| `database` | This computer | Docker | Starts PostgreSQL 16, applies the schema, loads synthetic data into an empty database, runs the checks. Safe to repeat; data kept in a volume |
 | `static` | Any static host | — | Copies the built pages and a start page to `--out`; no API |
 | `image` | Any registry | Docker | Builds the image and pushes it to `{registry}/aifirstmart-mock:{version}` |
 | `cloudrun` | Google Cloud Run | `gcloud`, signed in | Deploys the image to a Cloud Run service |

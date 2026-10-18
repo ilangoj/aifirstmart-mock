@@ -9,7 +9,8 @@ Each pull request adds its lines under `## Unreleased`; a release moves them und
   (new Dockerfile stage `db-tools`) applies the migrations, loads synthetic data into an empty database and runs the
   checks; safe to run again. `.env` gets `AFM_DB_PASSWORD` (filled in an existing `.env` without touching other
   values). `db seed --if-empty`. CI job `db-docker` runs the target twice with the real image and checks the data and
-  tenant isolation. Tests: setup container run twice against a fresh database here (26/26 checks both times).
+  tenant isolation. Tests: setup container run twice against a fresh database here (26/26 checks both times); CI `db-docker`
+  passed with postgres:16. Documents confirmed by owner: STANDARD.md (step 12, sections 2, 5, 6.5, 7, 8.2), README.md.
 - 2026-10-17 — **db (new):** PostgreSQL schema in five migrations (tenancy and identity; catalogue and stock ledger;
   orders, delivery plans, payments, refunds with approvals, shipments; integration: connections, encrypted
   credentials, listings, webhooks, job queue; tenant isolation with row-level security). Deterministic synthetic
