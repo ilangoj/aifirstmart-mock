@@ -11,7 +11,7 @@ from .authz import (INACTIVE_DISABLE_DAYS, TEMP_ROLE_MAX_DAYS, TENANT_ROLES, Pol
                     role_conflicts, scope_of)
 from .catalog import Catalog, CatalogError, Product
 from .config import settings
-from .connectors import Connection, ConnectorError, SandboxHub, build_connector
+from .connectors import Connection, ConnectionRegistry, ConnectorError, SandboxHub, build_connector
 from .identity import (AuthError, GoogleVerifier, OtpService, Principal, RefreshTokens, hash_password, issue_access_token,
                        normalize_email, normalize_phone, verify_access_token, verify_password)
 from .orders import OrderService
@@ -20,20 +20,35 @@ from .vault import Vault
 
 
 class Platform:
-    """Everything the API needs. In production each part is backed by a database or managed service."""
+    """Everything the API needs. With a database address (AFM_DATABASE_URL, or database_url) everything is stored in
+    PostgreSQL (pg.py); without one it is kept in memory, with the catalogue optionally in SQLite (AFM_DB_PATH).
+    One-time codes and pending MFA sign-ins stay in memory in both cases (short-lived; see STANDARD.md known limitations)."""
 
     def __init__(self, otp_sender: Callable[[str, str], None] | None = None, http: httpx.Client | None = None, google: GoogleVerifier | None = None,
-                 db_path: str | None = None):
-        self.store, self.catalog, self.vault, self.hub = Store(), Catalog(db_path or settings.db_path), Vault(), SandboxHub()
-        self.orders, self.policy = OrderService(self.catalog), PolicyEngine()
-        self.otp, self.refresh = OtpService(otp_sender), RefreshTokens()
-        self.connections: dict[str, Connection] = {}
+                 db_path: str | None = None, database_url: str | None = None):
+        url = settings.database_url if database_url is None else database_url
+        self.hub, self.policy, self.otp = SandboxHub(), PolicyEngine(), OtpService(otp_sender)
+        self.backend = None
+        if url:
+            from .pg import PgBackend
+            self.backend = PgBackend(url, settings.db_app_role or None, settings.vault_master_key)
+            b = self.backend
+            self.store, self.catalog, self.vault, self.orders, self.connections, self.refresh = b.store, b.catalog, b.vault, b.orders, b.connections, b.refresh
+        else:
+            self.store, self.catalog, self.vault = Store(), Catalog(db_path or settings.db_path), Vault()
+            self.orders, self.refresh = OrderService(self.catalog), RefreshTokens()
+            self.connections = ConnectionRegistry()
         self.http = http
         self.mfa: dict[str, tuple[str, float]] = {}
         self.google = google
-        admin = StaffUser(new_id("usr"), None, normalize_email(settings.platform_admin_email),
-                          hash_password(settings.platform_admin_password), ["platform_admin"])
-        self.store.staff[admin.id] = admin
+        email = normalize_email(settings.platform_admin_email)
+        if self.store.staff_by_email(email) is None:                 # created once; an existing one keeps its password
+            admin = StaffUser(new_id("usr"), None, email, hash_password(settings.platform_admin_password), ["platform_admin"])
+            self.store.staff[admin.id] = admin
+
+    def close(self) -> None:
+        if self.backend:
+            self.backend.close()
 
     def tokens(self, p: Principal, refresh_ttl: int | None) -> dict:
         out = {"access_token": issue_access_token(p), "token_type": "bearer", "expires_in": settings.access_ttl_s}
@@ -106,8 +121,9 @@ class LocationIn(BaseModel):
 class ProductIn(BaseModel):
     sku: str
     name: str
-    price_paise: int = Field(ge=0)
-    gtin: str | None = None
+    price_paise: int = Field(gt=0)
+    mrp_paise: int | None = Field(default=None, gt=0)
+    gtin: str | None = Field(default=None, pattern=r"^([0-9]{8}|[0-9]{12,14})$")     # GTIN-8, -12, -13 or -14
     brand: str | None = None
     channel_ids: dict = {}
     category: str = "Grocery"
@@ -198,14 +214,17 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         if not u or not u.active or not verify_password(body.password, u.password_hash):
             if u:
                 u.failed_logins += 1
+                P.store.save_staff(u)
             raise HTTPException(401, "Incorrect email or password")
         if u.tenant_id:
             tenant_or_404(u.tenant_id)
         now = time.time()
         if u.last_login and now - u.last_login > INACTIVE_DISABLE_DAYS * 86400:
             u.active = False
+            P.store.save_staff(u)
             raise HTTPException(423, f"Account disabled after {INACTIVE_DISABLE_DAYS} days without sign-in. Ask your administrator")
         u.failed_logins = 0
+        P.store.save_staff(u)
         if requires_mfa(u.effective_roles(now)):
             token = secrets.token_urlsafe(16)
             P.mfa[token] = (u.id, now + settings.otp_ttl_s)
@@ -216,6 +235,7 @@ def create_app(platform: Platform | None = None) -> FastAPI:
     def _staff_tokens(u: StaffUser) -> dict:
         now = time.time()
         u.last_login = now
+        P.store.save_staff(u)
         kind = "platform" if "platform_admin" in u.roles else "staff"
         pr = Principal(u.id, u.tenant_id, kind, u.effective_roles(now), u.stores, [], u.limits)
         return P.tokens(pr, settings.staff_refresh_ttl_s)
@@ -230,15 +250,15 @@ def create_app(platform: Platform | None = None) -> FastAPI:
     def google_customer(body: GoogleCustomerIn):
         tenant_or_404(body.tenant_id)
         g = _google(body.id_token)
-        c = next((x for x in P.store.customers.values() if x.tenant_id == body.tenant_id and x.google_sub == g.sub), None)
+        c = P.store.customer_by(body.tenant_id, google_sub=g.sub)
         if not c:
             c = P.store.customer_by(body.tenant_id, email=g.email)          # link to an account registered with the same email
             if c and c.google_sub and c.google_sub != g.sub:
                 raise HTTPException(409, "This email is linked to a different Google account")
             if not c:
                 c = Customer(new_id("cus"), body.tenant_id, email=g.email)
-                P.store.customers[c.id] = c
             c.google_sub = g.sub
+            P.store.save_customer(c)
         return P.tokens(Principal(c.id, c.tenant_id, "customer", ["customer"]), settings.customer_refresh_ttl_s)
 
     @app.post("/v1/auth/google/staff")
@@ -253,8 +273,10 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         now = time.time()
         if u.last_login and now - u.last_login > INACTIVE_DISABLE_DAYS * 86400:
             u.active = False
+            P.store.save_staff(u)
             raise HTTPException(423, f"Account disabled after {INACTIVE_DISABLE_DAYS} days without sign-in. Ask your administrator")
         u.google_sub = g.sub
+        P.store.save_staff(u)
         if requires_mfa(u.effective_roles(now)):
             token = secrets.token_urlsafe(16)
             P.mfa[token] = (u.id, now + settings.otp_ttl_s)
@@ -402,6 +424,7 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         u.roles = body.roles
         ceiling = default_limits(body.roles)
         u.limits = {k: min(v, ceiling[k]) for k, v in u.limits.items() if k in ceiling} | {k: v for k, v in ceiling.items() if k not in u.limits}
+        P.store.save_staff(u)
         P.refresh.revoke_subject(uid)                       # new roles take effect at next sign-in
         return {"user_id": uid, "roles": u.roles, "limits": u.limits}
 
@@ -418,12 +441,14 @@ def create_app(platform: Platform | None = None) -> FastAPI:
             raise HTTPException(400, "Store-level roles need at least one assigned store")
         until = now + body.days * 86400
         u.temp_roles.append((body.role, until, body.reason))
+        P.store.save_staff(u)
         return {"user_id": uid, "role": body.role, "until": until}
 
     @app.post("/v1/tenants/{tid}/users/{uid}/disable")
     def disable_user(tid: str, uid: str, p: Principal = Depends(principal)):
         u = _target(tid, uid, p)
         u.active = False
+        P.store.save_staff(u)
         P.refresh.revoke_subject(uid)
         return {"disabled": uid}
 
@@ -449,7 +474,9 @@ def create_app(platform: Platform | None = None) -> FastAPI:
     def upsert_product(tid: str, body: ProductIn, p: Principal = Depends(principal)):
         tenant_or_404(tid)
         allow(p, "catalog:write", tenant_id=tid)
-        P.catalog.upsert(Product(body.sku, tid, body.name, body.price_paise, body.gtin, body.brand, body.channel_ids, body.category))
+        if body.mrp_paise and body.price_paise > body.mrp_paise:
+            raise HTTPException(422, "The price is above the MRP")
+        P.catalog.upsert(Product(body.sku, tid, body.name, body.price_paise, body.gtin, body.brand, body.channel_ids, body.category, body.mrp_paise))
         return {"sku": body.sku}
 
     @app.post("/v1/tenants/{tid}/catalog/changes")
@@ -483,7 +510,15 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         if not loc or loc.tenant_id != tid:
             raise HTTPException(404, "Location not found")
         allow(p, "inventory:write", tenant_id=tid, store_id=body.location_id)
-        lvl = P.catalog.set_stock(tid, body.location_id, body.sku, body.on_hand, body.buffer)
+        if P.catalog.products.get((tid, body.sku)) is None:
+            raise HTTPException(404, "Product not found. Add it to the catalogue first")
+        current = P.catalog.stock.get((tid, body.location_id, body.sku))
+        if current and body.on_hand < current.reserved:
+            raise HTTPException(409, f"{current.reserved} are reserved for open orders; on hand cannot be less")
+        try:
+            lvl = P.catalog.set_stock(tid, body.location_id, body.sku, body.on_hand, body.buffer)
+        except CatalogError as e:
+            raise HTTPException(409, str(e))
         return {"sku": body.sku, "available": lvl.available}
 
     # ---------------- connections
@@ -494,6 +529,8 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         from .connectors import CONNECTOR_TYPES
         if body.channel not in CONNECTOR_TYPES:
             raise HTTPException(400, f"Unknown channel. Available: {sorted(CONNECTOR_TYPES)}")
+        if body.mode == "live" and not body.credentials:
+            raise HTTPException(400, "A live connection needs the channel's credentials")
         ref = P.vault.put(tid, body.credentials) if body.credentials else None
         c = Connection(new_id("con"), tid, body.channel, body.mode, "live" if body.mode == "live" else "sandbox", ref, body.settings)
         P.connections[c.id] = c
@@ -505,7 +542,7 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         allow(p, "connectors:manage", tenant_id=tid)
         return [{"connection_id": c.id, "channel": c.channel, "mode": c.mode, "status": c.status,
                  "credentials": P.vault.describe(c.credentials_ref) if c.credentials_ref else None}
-                for c in P.connections.values() if c.tenant_id == tid]
+                for c in P.connections.of_tenant(tid)]
 
     @app.post("/v1/tenants/{tid}/connections/{cid}/suspend")
     def suspend_connection(tid: str, cid: str, p: Principal = Depends(principal)):
@@ -513,6 +550,7 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         allow(p, "connectors:manage", tenant_id=tid)
         c = connection_or_404(tid, cid)
         c.status = "suspended"
+        P.connections[c.id] = c
         return {"connection_id": cid, "status": c.status}
 
     @app.post("/v1/tenants/{tid}/connections/{cid}/publish")

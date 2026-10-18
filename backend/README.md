@@ -11,10 +11,14 @@ pip install -r requirements.txt
 export AFM_JWT_SECRET="$(python -c 'import secrets;print(secrets.token_urlsafe(48))')"
 export AFM_VAULT_MASTER_KEY="$(python -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
 export AFM_PLATFORM_ADMIN_EMAIL=you@yourcompany.com AFM_PLATFORM_ADMIN_PASSWORD='a-long-password'
-export AFM_DB_PATH=./afm.sqlite                       # catalogue saved in SQLite (omit to keep it in memory)
+export AFM_DATABASE_URL=postgresql://afm:password@127.0.0.1:5432/afm   # store everything in PostgreSQL (omit: memory)
 uvicorn aifirstmart_connect.api:app --reload      # API docs at http://127.0.0.1:8000/docs
-pytest -q                                          # 89 tests
+pytest -q                                          # in memory
+AFM_TEST_STORAGE=postgres AFM_TEST_DATABASE_URL=postgresql://... pytest -q   # the same tests on PostgreSQL (empties that database)
 ```
+
+The PostgreSQL schema is in `db/migrations/` at the top of the project: create it with `python afm.py db migrate`, or
+start a ready database with `python afm.py deploy --target database` (STANDARD.md step 12).
 
 ## Structure
 
@@ -28,6 +32,7 @@ pytest -q                                          # 89 tests
 | `vault.py` | Per-tenant encrypted channel credentials |
 | `connectors/` | Common interface, sandbox marketplace, and the mobile app, WhatsApp, Facebook, Amazon, Flipkart, ONDC and generic connectors |
 | `api.py` | FastAPI routes |
+| `pg.py` | PostgreSQL storage behind the same methods as the in-memory stores; works as the restricted role so each request sees only its tenant |
 
 ## Who signs in how
 
@@ -86,7 +91,7 @@ Switching a connection to **live** uses the tenant's own credentials from the va
 3. Run a test publish, stock push and order on the channel's sandbox or test account.
 
 ### Known gaps to close for production
-- Replace the in-memory stores with a database, and the vault's local master key with a managed key service.
+- Move the vault's master key to a managed key service, and one-time codes and pending MFA sign-ins into the database.
 - Switch tokens to asymmetric signing (RS256/ES256) with key rotation when several services verify them.
 - Add an SMS provider with TRAI DLT-registered templates as the `OtpService` sender.
 - Amazon order polling returns order headers; add the order-items call to fill order lines.

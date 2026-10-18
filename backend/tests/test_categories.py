@@ -1,7 +1,8 @@
 """Authorization by persona category: baselines, additions, scope, limits and separation of duties."""
 import pytest
 from fastapi.testclient import TestClient
-from aifirstmart_connect.api import Platform, create_app
+from aifirstmart_connect.api import create_app
+from conftest import make_platform
 from aifirstmart_connect.authz import CATEGORIES, ROLES, PolicyEngine, permissions_for, role_conflicts
 from aifirstmart_connect.config import settings
 from aifirstmart_connect.identity import Principal
@@ -93,7 +94,7 @@ def test_conflicting_role_pairs():
 @pytest.fixture()
 def api():
     sms = {}
-    P = Platform(otp_sender=lambda d, code: sms.__setitem__(d, code))
+    P = make_platform(otp_sender=lambda d, code: sms.__setitem__(d, code))
     c = TestClient(create_app(P))
     def tok(e, pw):
         j = c.post("/v1/auth/staff/login", json={"email": e, "password": pw}).json()

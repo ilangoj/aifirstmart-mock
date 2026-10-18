@@ -2,7 +2,8 @@
 import time
 import pytest
 from fastapi.testclient import TestClient
-from aifirstmart_connect.api import Platform, create_app
+from aifirstmart_connect.api import create_app
+from conftest import make_platform
 from aifirstmart_connect.authz import PolicyEngine, permissions_for, role_definition_conflicts, requires_mfa
 from aifirstmart_connect.config import settings
 from aifirstmart_connect.identity import Principal
@@ -45,7 +46,7 @@ def test_mfa_roles():
 @pytest.fixture()
 def api():
     sms = {}
-    P = Platform(otp_sender=lambda d, code: sms.__setitem__(d, code))
+    P = make_platform(otp_sender=lambda d, code: sms.__setitem__(d, code))
     c = TestClient(create_app(P))
     def tok(e, pw):
         j = c.post("/v1/auth/staff/login", json={"email": e, "password": pw}).json()
@@ -97,6 +98,8 @@ def test_inactive_accounts_are_disabled(api):
     c, P, sms, tid, owner, loc, tok = api
     uid = c.post(f"/v1/tenants/{tid}/users", headers=owner, json={"email": "bala@r.example", "password": "procure-pass-1", "roles": ["procurement"]}).json()["user_id"]
     tok("bala@r.example", "procure-pass-1")
-    P.store.staff[uid].last_login = time.time() - 91 * 86400
+    u = P.store.staff[uid]
+    u.last_login = time.time() - 91 * 86400
+    P.store.save_staff(u)
     r = c.post("/v1/auth/staff/login", json={"email": "bala@r.example", "password": "procure-pass-1"})
     assert r.status_code == 423 and "90 days" in r.text and not P.store.staff[uid].active

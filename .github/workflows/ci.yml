@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with: {python-version: "${{ env.PYTHON_VERSION }}", cache: pip}
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt -r backend/requirements.txt
       - name: The app role used for tenant isolation
         run: PGPASSWORD=afm-ci psql -h 127.0.0.1 -U afm -d afm_test -c "CREATE ROLE afm_app NOLOGIN; GRANT afm_app TO afm;"
       - name: Migrations, synthetic data and data-quality checks
@@ -95,6 +95,10 @@ jobs:
           python afm.py db check
       - name: Database tests (they reset the database)
         run: python -m pytest -q tests/db
+      - name: Backend tests on PostgreSQL (the same tests as in memory, plus the PostgreSQL-only ones)
+        working-directory: backend
+        env: {AFM_TEST_STORAGE: postgres}
+        run: python -m pytest -q
 
   db-docker:
     runs-on: ubuntu-latest

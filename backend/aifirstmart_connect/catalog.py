@@ -16,10 +16,45 @@ class Product:
     brand: str | None = None
     channel_ids: dict = field(default_factory=dict)   # e.g. {"amazon": "ASIN...", "flipkart": "FSN..."}
     category: str = "Grocery"
+    mrp_paise: int | None = None                      # printed MRP; when known, the price may not exceed it
 
 
 class CatalogError(Exception):
     pass
+
+
+def prepare_changes(tenant_id: str, prices: dict[str, int], images: list[dict], product_of, image_count) -> list[tuple[str, dict]]:
+    """Check a set of catalogue changes before anything is written (the same rules for every storage).
+    product_of((tenant, sku)) returns the Product or None; image_count(sku) the number of pictures it has now.
+    Returns the pictures to add as (sku, record); raises CatalogError naming the first problem."""
+    for sku, paise in prices.items():
+        prod = product_of((tenant_id, sku))
+        if prod is None:
+            raise CatalogError(f"Unknown product {sku}")
+        if not isinstance(paise, int) or paise <= 0:
+            raise CatalogError(f"Price for {sku} must be a whole number of paise above 0")
+        if prod.mrp_paise and paise > prod.mrp_paise:
+            raise CatalogError(f"Price for {sku} is above its MRP of {prod.mrp_paise} paise")
+    prepared = []
+    counts = {sku: image_count(sku) for sku in {i.get("sku") for i in images} if product_of((tenant_id, sku)) is not None}
+    for i in images:
+        sku = i.get("sku")
+        if product_of((tenant_id, sku)) is None:
+            raise CatalogError(f"Unknown product {sku}")
+        role = i.get("role") or "Other"
+        if role not in IMAGE_ROLES:
+            raise CatalogError(f"Unknown image type {role}")
+        try:
+            data = base64.b64decode(i.get("data_base64") or "", validate=True)
+        except Exception as e:
+            raise CatalogError("Image data is not valid base64") from e
+        w, h = check_image(i.get("content_type", ""), data)
+        counts[sku] += 1
+        if counts[sku] > MAX_IMAGES:
+            raise CatalogError(f"{sku} would have more than {MAX_IMAGES} images")
+        prepared.append((sku, {"id": "img_" + secrets.token_hex(6), "role": role, "width": w, "height": h,
+                               "content_type": i["content_type"], "data": data}))
+    return prepared
 
 
 IMAGE_TYPES = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
@@ -92,29 +127,7 @@ class Catalog:
 
     def apply_changes(self, tenant_id: str, prices: dict[str, int], images: list[dict]) -> dict:
         """Validate everything first, then apply prices and images in one transaction."""
-        for sku, paise in prices.items():
-            if (tenant_id, sku) not in self.products:
-                raise CatalogError(f"Unknown product {sku}")
-            if not isinstance(paise, int) or paise <= 0:
-                raise CatalogError(f"Price for {sku} must be a whole number of paise above 0")
-        prepared = []
-        counts = {sku: len(self.images_of(tenant_id, sku)) for sku in {i.get("sku") for i in images}}
-        for i in images:
-            sku = i.get("sku")
-            if (tenant_id, sku) not in self.products:
-                raise CatalogError(f"Unknown product {sku}")
-            role = i.get("role") or "Other"
-            if role not in IMAGE_ROLES:
-                raise CatalogError(f"Unknown image type {role}")
-            try:
-                data = base64.b64decode(i.get("data_base64") or "", validate=True)
-            except Exception as e:
-                raise CatalogError("Image data is not valid base64") from e
-            w, h = check_image(i.get("content_type", ""), data)
-            counts[sku] += 1
-            if counts[sku] > MAX_IMAGES:
-                raise CatalogError(f"{sku} would have more than {MAX_IMAGES} images")
-            prepared.append((sku, {"id": "img_" + secrets.token_hex(6), "role": role, "width": w, "height": h, "content_type": i["content_type"], "data": data}))
+        prepared = prepare_changes(tenant_id, prices, images, self.products.get, lambda sku: len(self.images_of(tenant_id, sku)))
         before = {}
         try:
             for sku, paise in prices.items():

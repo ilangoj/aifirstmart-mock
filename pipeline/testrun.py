@@ -1,5 +1,6 @@
 """Step: run browser tests, all or only those covering one module (a full run adds the backend, server and database pytest suites;
-the database tests run only when AFM_TEST_DATABASE_URL is set).
+the database tests, and the backend tests on PostgreSQL, run only when
+AFM_TEST_DATABASE_URL is set).
 
     python afm.py test                                  # everything (+ backend pytest)
     python afm.py test --module phase2                  # only tests that cover phase2
@@ -46,8 +47,13 @@ def run(module=None, test=None, editions=None, langs=None, rebuild=False):
         print(f'{name:13s} {e}/{l}  {ok:3d} passed  {len(bad)} failed' + ('  CRASHED: ' + (lines[-1] if lines else '') if crash else ''))
         for x in bad: print('    ', x[:220])
     if not module and not test:
-        p = subprocess.run([sys.executable, '-m', 'pytest', '-q'], cwd=ROOT / 'backend', capture_output=True, text=True)
+        p = subprocess.run([sys.executable, '-m', 'pytest', '-q'], cwd=ROOT / 'backend', capture_output=True, text=True,
+                           env={k: v for k, v in os.environ.items() if k != 'AFM_TEST_STORAGE'})
         print('backend      ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
+        if os.environ.get('AFM_TEST_DATABASE_URL'):            # the same backend tests again, on PostgreSQL
+            p = subprocess.run([sys.executable, '-m', 'pytest', '-q'], cwd=ROOT / 'backend', capture_output=True, text=True,
+                               env=dict(os.environ, AFM_TEST_STORAGE='postgres'))
+            print('backend (pg) ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
         p = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/server'], cwd=ROOT, capture_output=True, text=True)
         print('server       ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
         p = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/db'], cwd=ROOT, capture_output=True, text=True)

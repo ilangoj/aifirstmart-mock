@@ -3,7 +3,8 @@ import base64, io
 import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
-from aifirstmart_connect.api import Platform, create_app
+from aifirstmart_connect.api import create_app
+from conftest import make_platform
 from aifirstmart_connect.config import settings
 
 
@@ -13,7 +14,7 @@ def png(w=900, h=900, fmt="PNG"):
 
 def boot(db):
     sms = {}
-    P = Platform(otp_sender=lambda d, c: sms.__setitem__(d, c), db_path=db)
+    P = make_platform(otp_sender=lambda d, c: sms.__setitem__(d, c), db_path=db)
     c = TestClient(create_app(P))
     def tok(e, pw):
         j = c.post("/v1/auth/staff/login", json={"email": e, "password": pw}).json()

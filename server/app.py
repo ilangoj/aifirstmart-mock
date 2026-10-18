@@ -64,7 +64,7 @@ def create_server(environ=os.environ) -> FastAPI:
         return start_page(pages, api)
 
     if api:
-        for k in (*SAMPLE_SECRETS, 'AFM_DB_PATH', 'AFM_PLATFORM_ADMIN_EMAIL'):
+        for k in (*SAMPLE_SECRETS, 'AFM_DB_PATH', 'AFM_DATABASE_URL', 'AFM_PLATFORM_ADMIN_EMAIL'):
             if os.environ.get(k) == '':      # an empty line in .env means "not set": the backend uses its own default
                 del os.environ[k]
         sys.path.insert(0, str(ROOT / 'backend'))
