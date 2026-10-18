@@ -2,7 +2,8 @@
 
     python afm.py db migrate                       apply new files from db/migrations/, in number order
     python afm.py db status                        which migrations are applied, and row counts
-    python afm.py db seed [--scale small|medium|large] [--seed 42]   load synthetic data (empty database only)
+    python afm.py db seed [--scale small|medium|large] [--seed 42] [--if-empty]   synthetic data (empty database only;
+                                                   --if-empty skips quietly when data exists)
     python afm.py db check                         data-quality checks (totals, stock, refunds, isolation)
     python afm.py db reset --yes                   drop everything and start again (never in production)
     python afm.py db export --out data/            synthetic data as CSV files, one per table (no database needed)
@@ -111,7 +112,7 @@ def reset(yes: bool) -> int:
     return 0
 
 
-def seed(scale: str, seed_value: int) -> int:
+def seed(scale: str, seed_value: int, if_empty: bool = False) -> int:
     from psycopg.types.json import Jsonb
     from db.synthetic.generate import COLUMNS, SYNTHETIC_PASSWORD, generate
     data = generate(scale=scale, seed=seed_value)
@@ -119,6 +120,9 @@ def seed(scale: str, seed_value: int) -> int:
     with connect() as conn, conn.cursor() as cur:
         cur.execute('SELECT count(*) FROM tenants')
         if cur.fetchone()[0]:
+            if if_empty:
+                print('The database already has data; not seeding (--if-empty).')
+                return 0
             raise SystemExit('The database already has data. Seed only an empty database (db reset --yes, db migrate).')
         for table in COLUMNS:                     # parents before children
             rows = data[table]

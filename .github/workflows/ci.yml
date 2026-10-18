@@ -96,6 +96,30 @@ jobs:
       - name: Database tests (they reset the database)
         run: python -m pytest -q tests/db
 
+  db-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}"}
+      - name: PostgreSQL in Docker, schema, synthetic data and checks (the user's one command)
+        run: python afm.py deploy --target database
+      - name: Running it again keeps the data and changes nothing
+        run: python afm.py deploy --target database
+      - name: Reachable from this computer, with data, and tenant isolation in force
+        run: |
+          export PGPASSWORD=$(grep '^AFM_DB_PASSWORD=' .env | cut -d= -f2-)
+          psql -h 127.0.0.1 -U afm -d afm -v ON_ERROR_STOP=1 -At <<'SQL'
+          SELECT 'orders: ' || count(*) FROM orders;
+          DO $$ BEGIN IF (SELECT count(*) FROM orders) < 1000 THEN RAISE EXCEPTION 'too few orders'; END IF; END $$;
+          SET ROLE afm_app;
+          DO $$ BEGIN IF (SELECT count(*) FROM orders) <> 0 THEN RAISE EXCEPTION 'isolation off'; END IF; END $$;
+          SELECT 'tenant isolation: ok';
+          SQL
+      - if: failure()
+        run: docker compose --env-file .env -f deploy/docker-compose.yml --profile db logs
+
   changelog:
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest

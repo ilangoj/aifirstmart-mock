@@ -84,7 +84,7 @@ def cmd_db(a):
     from pipeline import db
     if a.action == 'migrate': return db.migrate()
     if a.action == 'status': return db.status()
-    if a.action == 'seed': return db.seed(a.scale, a.seed)
+    if a.action == 'seed': return db.seed(a.scale, a.seed, a.if_empty)
     if a.action == 'check': return db.check()
     if a.action == 'reset': return db.reset(a.yes)
     if a.action == 'export': return db.export(a.scale, a.seed, a.out)
@@ -111,7 +111,7 @@ def main(argv=None):
     r = s.add_parser('verify'); r.add_argument('--url', required=True); r.set_defaults(f=cmd_verify)
     g = s.add_parser('db'); g.add_argument('action', choices=['migrate', 'status', 'seed', 'check', 'reset', 'export'])
     g.add_argument('--scale', default='small', choices=['small', 'medium', 'large']); g.add_argument('--seed', type=int, default=42)
-    g.add_argument('--yes', action='store_true'); g.add_argument('--out', default='data'); g.set_defaults(f=cmd_db)
+    g.add_argument('--yes', action='store_true'); g.add_argument('--if-empty', action='store_true'); g.add_argument('--out', default='data'); g.set_defaults(f=cmd_db)
     a = p.parse_args(argv)
     return a.f(a) or 0
 

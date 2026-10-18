@@ -13,7 +13,20 @@ COPY src src
 ARG AFM_EDITIONS=training,platform
 RUN for e in $(echo "$AFM_EDITIONS" | tr ',' ' '); do python afm.py build --edition "$e" --lang all; done
 
-# ---- Stage 2: run the server
+# ---- Database tools: schema migrations, synthetic data and checks (afm.py db). Used by the db-setup service in
+#      docker-compose.yml; build it alone with --target db-tools.
+FROM python:${PYTHON} AS db-tools
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+RUN pip install --no-cache-dir "psycopg[binary]>=3.1" && useradd --system --uid 10001 --home /app afm
+COPY afm.py VERSION ./
+COPY pipeline pipeline
+COPY config config
+COPY db db
+USER afm
+CMD ["python", "afm.py", "db", "status"]
+
+# ---- Stage 2: run the server (the last stage, so it is what a plain docker build produces)
 FROM python:${PYTHON}
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     PORT=8080 AFM_ENV=production AFM_DIST=/app/dist

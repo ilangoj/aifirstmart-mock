@@ -80,26 +80,38 @@ def fill(text: str, values: dict) -> str:
 
 
 def ensure_env_file() -> None:
-    """Create .env from .env.example with fresh random secrets when it does not exist. Never overwrites."""
-    env = ROOT / '.env'
-    if env.exists():
-        return
+    """Create .env from .env.example with fresh random secrets when it does not exist. In an existing .env, fill only
+    secrets that are missing or empty (for example AFM_DB_PASSWORD, added later); never changes a value already set."""
     import base64
+    env = ROOT / '.env'
     fresh = {
         'AFM_JWT_SECRET': secrets.token_urlsafe(48),
         'AFM_VAULT_MASTER_KEY': base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),   # a Fernet key
         'AFM_PLATFORM_ADMIN_PASSWORD': secrets.token_urlsafe(18),
+        'AFM_DB_PASSWORD': secrets.token_urlsafe(24),
     }
-    lines = []
-    for line in (ROOT / '.env.example').read_text(encoding='utf-8').splitlines():
-        k = line.split('=', 1)[0]
-        lines.append(f'{k}={fresh[k]}' if k in fresh and line.strip() == f'{k}=' else line)
+    created = not env.exists()
+    lines = (ROOT / '.env.example' if created else env).read_text(encoding='utf-8').splitlines()
+    filled, seen = [], set()
+    for i, line in enumerate(lines):
+        k = line.split('=', 1)[0].strip()
+        seen.add(k)
+        if k in fresh and line.strip() == f'{k}=':
+            lines[i] = f'{k}={fresh[k]}'
+            filled.append(k)
+    for k in fresh:
+        if k not in seen:
+            lines.append(f'{k}={fresh[k]}')
+            filled.append(k)
+    if not filled and not created:
+        return
     env.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     try:
         env.chmod(0o600)
     except OSError:
         pass
-    print(f'Created .env with fresh secrets (admin password: {fresh["AFM_PLATFORM_ADMIN_PASSWORD"]}). Keep it private; it is not committed.')
+    note = f' (admin password: {fresh["AFM_PLATFORM_ADMIN_PASSWORD"]})' if 'AFM_PLATFORM_ADMIN_PASSWORD' in filled else ''
+    print(f'{"Created .env with" if created else "Added to .env:"} fresh {", ".join(filled)}{note}. Keep it private; it is not committed.')
 
 
 def load_env_file() -> dict:

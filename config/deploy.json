@@ -29,6 +29,17 @@
       ],
       "after": "Open http://127.0.0.1:8080 (or the AFM_HOST_PORT in .env). Stop: docker compose --env-file .env -f deploy/docker-compose.yml down"
     },
+    "database": {
+      "description": "This computer: PostgreSQL in Docker, with the schema applied, synthetic data loaded and the checks run",
+      "needs": "Docker with the compose plugin",
+      "prepare": ["env-file"],
+      "defaults": {"scale": "small"},
+      "commands": [
+        "docker compose --env-file .env -f deploy/docker-compose.yml --profile db up -d --wait db",
+        "docker compose --env-file .env -f deploy/docker-compose.yml --profile db run --rm --build -e AFM_SEED_SCALE={scale} db-setup"
+      ],
+      "after": "PostgreSQL is running: postgresql://afm:<AFM_DB_PASSWORD from .env>@127.0.0.1:5432/afm (port AFM_DB_HOST_PORT in .env). Run the steps again any time with the same command; data is kept. Start empty: docker compose --env-file .env -f deploy/docker-compose.yml --profile db down -v"
+    },
     "static": {
       "description": "The built pages and a start page as plain files, for any static file host (no API)",
       "needs": "Nothing",
