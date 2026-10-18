@@ -1,7 +1,8 @@
 import json
 import pytest
 from fastapi.testclient import TestClient
-from aifirstmart_connect.api import Platform, create_app
+from aifirstmart_connect.api import create_app
+from conftest import make_platform
 from aifirstmart_connect.config import settings
 from aifirstmart_connect.connectors.base import hmac_sha256_hex
 
@@ -12,7 +13,7 @@ SMS = {}
 @pytest.fixture()
 def env():
     SMS.clear()
-    P = Platform(otp_sender=lambda dest, code: SMS.__setitem__(dest, code))
+    P = make_platform(otp_sender=lambda dest, code: SMS.__setitem__(dest, code))
     return TestClient(create_app(P)), P, SMS
 
 
@@ -42,7 +43,7 @@ def test_full_retailer_flow_with_whatsapp_order(env):
     assert r.status_code == 201
     mgr = login(c, "raj@retail.example", "manager-pass-1")
     assert c.post(f"/v1/tenants/{tid}/products", headers=owner, json={"sku": "AAVIN-500", "name": "Aavin Milk 500ml",
-                  "price_paise": 2600, "gtin": "8901002"}).status_code == 201
+                  "price_paise": 2600, "gtin": "8901262010016"}).status_code == 201
     r = c.post(f"/v1/tenants/{tid}/inventory", headers=mgr, json={"location_id": loc, "sku": "AAVIN-500", "on_hand": 32, "buffer": 2})
     assert r.json()["available"] == 30
     r = c.post(f"/v1/tenants/{tid}/connections", headers=owner, json={"channel": "whatsapp",
@@ -111,6 +112,7 @@ def test_role_and_store_limits(env):
     kavya, raj = login(c, "kavya@r.example", "cashier-pass-1"), login(c, "raj@r.example", "manager-pass-1")
     assert c.post(f"/v1/tenants/{tid}/users", headers=kavya, json={"email": "x@r.example", "password": "xxxxxxxxxxx", "roles": ["cashier"], "stores": [ulu]}).status_code == 403
     assert c.post(f"/v1/tenants/{tid}/users", headers=owner, json={"email": "x@r.example", "password": "xxxxxxxxxxx", "roles": ["platform_admin"]}).status_code == 400
+    assert c.post(f"/v1/tenants/{tid}/products", headers=owner, json={"sku": "S", "name": "Sample", "price_paise": 100}).status_code == 201
     assert c.post(f"/v1/tenants/{tid}/inventory", headers=raj, json={"location_id": ulu, "sku": "S", "on_hand": 1}).status_code == 200
     assert c.post(f"/v1/tenants/{tid}/inventory", headers=raj, json={"location_id": kal, "sku": "S", "on_hand": 1}).status_code == 403
 

@@ -383,14 +383,19 @@ python afm.py db export --out data/           # the synthetic data as CSV files;
 
 - **Schema** (`db/migrations/`): `0001` tenants, locations, staff, roles, customers, audit log; `0002` catalogue,
   prices, stock and its ledger; `0003` orders, delivery plans, payments, refunds and approvals, shipments; `0004`
-  channel connections, encrypted credentials, listings, webhooks and the job queue; `0005` tenant isolation.
+  channel connections, encrypted credentials, listings, webhooks and the job queue; `0005` tenant isolation; `0006`
+  what the backend API stores beyond that (legal details, channel product ids, picture bytes until there is file
+  storage, the buyer reference and lines for products not in the catalogue, refresh-token sessions).
 - **Rules built into the schema:** ids with a type prefix (`ten_`, `ord_` …); money in paise; every tenant row
   carries `tenant_id` and references `(tenant_id, id)`, so rows cannot point across tenants; price never above MRP;
   order total = subtotal − discount + delivery fee; a channel's order is stored once; reserved stock never exceeds
   on hand; channels see `on_hand − buffer − reserved`.
-- **Tenant isolation:** the API will connect as the role `afm_app`, which sees only the tenant set for the request
-  (row-level security). An administrator creates the role once: `CREATE ROLE afm_app NOLOGIN; GRANT afm_app TO afm;`
-  before `db migrate`.
+- **Tenant isolation:** the backend works as the role `afm_app` (`AFM_DB_APP_ROLE`), which sees only the tenant set
+  for the request (row-level security), and refuses to start if the role is missing. An administrator creates the
+  role once: `CREATE ROLE afm_app NOLOGIN; GRANT afm_app TO afm;` before `db migrate` (the `database` target does this).
+- **The backend on PostgreSQL:** set `AFM_DATABASE_URL` (and `AFM_VAULT_MASTER_KEY`) and the backend stores
+  everything there (`backend/aifirstmart_connect/pg.py`); without it, the backend keeps data in memory as before.
+  Both use the same rules, and the backend tests run against both.
 - **Job queue:** in PostgreSQL. Workers call `claim_jobs(worker, n)`; `finish_job(id, ok, error)` retries failures
   after 30 s, 1, 2, 4 … minutes and marks a job dead after its last attempt.
 - **Changing the schema:** never edit an applied migration (`db migrate` refuses if one changed). Add the next
@@ -462,7 +467,7 @@ Runs on every push to a branch and on every pull request:
 | `i18n` | `python afm.py i18n check` | The Tamil dictionary or lessons are malformed |
 | `build` | `python afm.py build`, then builds again and compares | A page fails to build, or two builds differ |
 | `test` | `python afm.py test` (all browser checks and backend tests) | Any check fails |
-| `db` | PostgreSQL 16 service: `db migrate`, `db seed`, `db check`, then `pytest tests/db` | A migration fails, a rule is broken, or a database test fails |
+| `db` | PostgreSQL 16 service: `db migrate`, `db seed`, `db check`, `pytest tests/db`, then the backend tests on PostgreSQL | A migration fails, a rule is broken, or a database or backend test fails |
 | `db-docker` | `deploy --target database` twice, then queries over the published port | The one-command setup fails, repeats work, or isolation is off |
 | `changelog` | Compares the branch with `main` | Code, config or source changed without a `CHANGELOG.md` entry |
 | `image` | `docker build -f deploy/Dockerfile .` and a `/healthz` check | The container does not build or start |
@@ -503,9 +508,11 @@ all of them; copy it to `.env` for local use. `.env` is never committed.
 | `AFM_JWT_SECRET` | backend | sample value | **Secret.** 48+ random characters |
 | `AFM_VAULT_MASTER_KEY` | backend | none | **Secret.** A Fernet key |
 | `AFM_PLATFORM_ADMIN_EMAIL` / `_PASSWORD` | backend | sample values | **Secret** password |
-| `AFM_DB_PATH` | backend | in memory | A file on a persistent volume, e.g. `/data/afm.sqlite` |
+| `AFM_DB_PATH` | backend, without `AFM_DATABASE_URL` | in memory | SQLite file for the catalogue only; use PostgreSQL instead |
 | `AFM_GOOGLE_CLIENT_IDS` | backend | empty | Comma-separated OAuth client ids |
-| `AFM_DATABASE_URL` | `afm.py db` | none | **Secret** (contains the password). The PostgreSQL address |
+| `AFM_DATABASE_URL` | `afm.py db`, backend | none | **Secret** (contains the password). The PostgreSQL address; the backend stores everything there when set |
+| `AFM_DB_APP_ROLE` | backend | `afm_app` | The restricted role the backend works as. Empty: no switch (development only) |
+| `AFM_APP_DATABASE_URL` | docker target | none | **Secret.** The API's database inside the container, e.g. `postgresql://afm:<password>@db:5432/afm` |
 | `AFM_DB_PASSWORD` | `database` target | created by `deploy` | **Secret.** Password of the PostgreSQL container's `afm` user |
 | `AFM_DB_HOST_PORT` | `database` target | `5432` | Port on this computer (127.0.0.1 only) for the PostgreSQL container |
 | `AFM_TEST_DATABASE_URL` | `tests/db` | none | A separate database the tests may empty; never production |
@@ -570,10 +577,11 @@ deployment to a provider, check the commands against that provider's current doc
 
 ### 8.4 Data
 
-The mock pages keep their data in the browser. The backend keeps it in memory, or in SQLite when `AFM_DB_PATH` is
-set. In a container, SQLite must point at a persistent volume (`docker-compose.yml` does this); most container
-clouds give no persistent disk, so a cloud deployment of the backend loses its data on restart until it moves to a
-managed database (section 13).
+The mock pages keep their data in the browser. The backend stores everything in PostgreSQL when `AFM_DATABASE_URL`
+is set, which is how it should run anywhere data matters; several copies of the API can then share one database.
+Without it, the backend keeps data in memory (the catalogue optionally in SQLite, `AFM_DB_PATH`). In the docker
+target, set `AFM_APP_DATABASE_URL` to use the PostgreSQL started by the `database` target. On a cloud, use the
+provider's managed PostgreSQL (Cloud SQL, RDS, Azure Database for PostgreSQL) and run `db migrate` against it.
 
 ---
 
@@ -673,7 +681,10 @@ and propose the new row for the table in section 8.2 in the same pull request.
 - **Tests start clean**: clear `localStorage` and reload before checking.
 - **Definition of done**: the tests for every touched module pass on every page they list, the full suite passes in
   CI on the pull request, and the `CHANGELOG.md` entry is written.
-- **Backend tests** live in `backend/tests/` (pytest). A new endpoint or rule gets a test there.
+- **Backend tests** live in `backend/tests/` (pytest). A new endpoint or rule gets a test there. Tests build the
+  platform with `make_platform()`, so each runs in memory and on PostgreSQL (`AFM_TEST_STORAGE=postgres` with
+  `AFM_TEST_DATABASE_URL`); `test_pg_storage.py` covers what only PostgreSQL does (isolation, restarts, sessions
+  shared between copies, the same order arriving twice at once).
 - **Server and deployment**: CI builds the image and checks `/healthz`; `afm.py verify` checks a running address.
 - **Database**: `tests/db` checks that the generator is deterministic, that every data-quality rule passes and catches
   a broken row, that the schema rejects invalid data, the job queue, and tenant isolation. They need
@@ -725,9 +736,11 @@ confirmation; changing the changelog's format does.
 - The training-records code is inside `phase2` (part `40-training-records.js`) and is switched off by
   `AFM_NO_TRAINING` in the platform edition.
 - The mock pages do not call the backend yet; they are served beside it. Connecting them is a separate feature.
-- The backend's SQLite store suits one server with a persistent disk. Running several copies, or on a container
-  cloud without a disk, needs a managed database first. The PostgreSQL schema (`db/`) is ready for that, but the
-  backend does not use it yet: moving the backend onto it is the next step.
+- On PostgreSQL, one-time sign-in codes and pending MFA sign-ins are still kept in the memory of each copy of the
+  API (they last minutes). Until they move to the database, a sign-in that needs a code must finish on the same copy.
+- Product pictures are stored in the database (`product_images.data`) until file storage is set up.
+- The memory mode's SQLite option (`AFM_DB_PATH`) remains for now; it will be removed once nothing depends on it.
 - Some tables are kept for later work and are not filled by the synthetic data: `refresh_tokens` (written at
-  sign-in). Suppliers and purchase orders have no tables yet.
+  sign-in). Suppliers and purchase orders have no tables yet. The backend does not yet write payments, refunds,
+  delivery plans or shipments; the synthetic data has them for the screens that will.
 - The cloud targets in `config/deploy.json` have been checked with `--dry-run` only, not run against a real account.

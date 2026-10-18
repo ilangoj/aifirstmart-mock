@@ -4,6 +4,16 @@ Newest first. For each change: date, modules touched, what changed for the user,
 Each pull request adds its lines under `## Unreleased`; a release moves them under its version (STANDARD.md 6.6).
 
 ## Unreleased
+- 2026-10-18 — **backend, db:** the backend stores everything in PostgreSQL when `AFM_DATABASE_URL` is set
+  (`pg.py`: tenants, staff and roles, customers, catalogue and pictures, stock with its ledger, orders with
+  reservations, encrypted credentials, connections, refresh-token sessions), working as the restricted role `afm_app`
+  so the database enforces tenant isolation; memory stays the default. Migration `0006` (backend alignment). Explicit
+  saves after every change in the API. Rules now the same in both modes: GTIN format, price above 0 and not above MRP,
+  stock only for catalogue products and never below what is reserved, live connections need credentials. Orders for
+  products not in the catalogue are kept and flagged. Orders list loads in three queries (5,090 orders: 3.2 s → 0.5 s).
+  Data checks: an order may have no payment yet. Tests: backend 89 in memory, 95 on PostgreSQL (6 new:
+  isolation, restart, sessions across API copies, same order twice at once, unknown products, stock ledger);
+  `afm.py test` 114/114; API served the synthetic data over HTTP. Documents confirmed by owner: STANDARD.md, backend/README.md.
 - 2026-10-18 — **deploy, db:** new target `afm.py deploy --target database`: PostgreSQL 16 in Docker on this
   computer (compose profile `db`, volume `pg-data`, port on 127.0.0.1 only), then a `db-setup` container
   (new Dockerfile stage `db-tools`) applies the migrations, loads synthetic data into an empty database and runs the

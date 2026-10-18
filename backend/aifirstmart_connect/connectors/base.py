@@ -23,6 +23,13 @@ class Connection:
     settings: dict = field(default_factory=dict)   # seller_id, catalog_id, phone_number_id, location_map, ...
 
 
+class ConnectionRegistry(dict):
+    """Connections by id (in memory). pg.py has the PostgreSQL one with the same methods."""
+
+    def of_tenant(self, tenant_id: str) -> list[Connection]:
+        return [c for c in self.values() if c.tenant_id == tenant_id]
+
+
 class SandboxHub:
     """In-memory stand-in for every marketplace: records what connectors send, and lets tests inject orders."""
 

@@ -1,4 +1,4 @@
-"""Tenants (business customers), locations, staff, customers and service clients (in-memory store)."""
+"""Tenants (business customers), locations, staff, customers and service clients (in-memory store; pg.py has the PostgreSQL one)."""
 from __future__ import annotations
 import secrets
 from dataclasses import dataclass, field
@@ -74,8 +74,18 @@ class Store:
     def staff_by_email(self, email: str) -> StaffUser | None:
         return next((u for u in self.staff.values() if u.email == email), None)
 
-    def customer_by(self, tenant_id: str, *, email: str | None = None, phone: str | None = None) -> Customer | None:
+    def customer_by(self, tenant_id: str, *, email: str | None = None, phone: str | None = None,
+                    google_sub: str | None = None) -> Customer | None:
         for c in self.customers.values():
-            if c.tenant_id == tenant_id and ((email and c.email == email) or (phone and c.phone == phone)):
+            if c.tenant_id == tenant_id and ((email and c.email == email) or (phone and c.phone == phone)
+                                             or (google_sub and c.google_sub == google_sub)):
                 return c
         return None
+
+    # Saving a new or changed record. The API calls these after every change. In memory the stored object is the
+    # one being changed, so this only adds new records; the PostgreSQL store (pg.py) writes every change.
+    def save_staff(self, u: StaffUser) -> None:
+        self.staff[u.id] = u
+
+    def save_customer(self, c: Customer) -> None:
+        self.customers[c.id] = c

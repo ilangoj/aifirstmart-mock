@@ -26,6 +26,10 @@ class Settings:
     google_client_ids: list = field(default_factory=lambda: [x for x in os.environ.get("AFM_GOOGLE_CLIENT_IDS", "").split(",") if x])
     google_jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
     db_path: str | None = field(default_factory=lambda: os.environ.get("AFM_DB_PATH"))   # SQLite file; None keeps data in memory
+    # PostgreSQL: when set, everything is stored there (pg.py) and AFM_DB_PATH is not used.
+    database_url: str | None = field(default_factory=lambda: os.environ.get("AFM_DATABASE_URL") or None)
+    # The restricted role the API works as, so row-level security applies (db/migrations/0005). Empty: no switch.
+    db_app_role: str = field(default_factory=lambda: os.environ.get("AFM_DB_APP_ROLE", "afm_app"))
     endpoints: dict = field(default_factory=lambda: {
         "amazon": {"token_url": "https://api.amazon.com/auth/o2/token",
                    "api_base": "https://sellingpartnerapi-eu.amazon.com",

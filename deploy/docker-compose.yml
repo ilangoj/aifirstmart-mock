@@ -19,6 +19,9 @@ services:
         required: false
     environment:
       AFM_DB_PATH: /data/afm.sqlite
+      # PostgreSQL for the API inside this container. Not AFM_DATABASE_URL from .env, which points at 127.0.0.1 for
+      # the tools on this computer. With the database target running: postgresql://afm:<AFM_DB_PASSWORD>@db:5432/afm
+      AFM_DATABASE_URL: ${AFM_APP_DATABASE_URL:-}
     ports:
       - "${AFM_HOST_PORT:-8080}:8080"
     volumes:

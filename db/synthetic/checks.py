@@ -14,8 +14,9 @@ CHECKS: list[tuple[str, str]] = [
     ('Order subtotal equals the sum of its lines', """
         SELECT o.id FROM orders o JOIN order_lines l ON l.order_id = o.id
         GROUP BY o.id, o.subtotal_paise HAVING sum(l.line_total_paise) <> o.subtotal_paise"""),
-    ('Every order has at least one line', """
-        SELECT o.id FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_lines l WHERE l.order_id = o.id)"""),
+    ('Every order has at least one line (lines for products not in the catalogue count)', """
+        SELECT o.id FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_lines l WHERE l.order_id = o.id)
+          AND jsonb_array_length(o.unmatched_lines) = 0"""),
     ('GST included in an order is less than its subtotal', """
         SELECT id FROM orders WHERE tax_paise >= subtotal_paise AND subtotal_paise > 0"""),
     ('Line prices match the product price on the day of the order', """
@@ -50,9 +51,9 @@ CHECKS: list[tuple[str, str]] = [
     ('Plan orders are for the plan customer and store', """
         SELECT o.id FROM orders o JOIN delivery_plans p ON p.id = o.plan_id
         WHERE o.customer_id <> p.customer_id OR o.location_id <> p.location_id"""),
-    ('Each order is paid in full by one payment', """
-        SELECT o.id FROM orders o LEFT JOIN payments p ON p.order_id = o.id
-        GROUP BY o.id, o.total_paise HAVING count(p.id) <> 1 OR sum(p.amount_paise) <> o.total_paise"""),
+    ('An order has at most one payment, for its full amount (orders from channels may not be paid yet)', """
+        SELECT o.id FROM orders o JOIN payments p ON p.order_id = o.id
+        GROUP BY o.id, o.total_paise HAVING count(p.id) > 1 OR sum(p.amount_paise) <> o.total_paise"""),
     ('Refunds never exceed the payment', """
         SELECT p.id FROM payments p JOIN refunds r ON r.payment_id = p.id AND r.status IN ('approved', 'paid')
         GROUP BY p.id, p.amount_paise HAVING sum(r.amount_paise) > p.amount_paise"""),
