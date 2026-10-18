@@ -28,3 +28,6 @@ venv/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Synthetic data exported as CSV (python afm.py db export)
+data/

@@ -68,6 +68,34 @@ jobs:
         uses: actions/upload-artifact@v4
         with: {name: test-results, path: tests/results/, retention-days: 14}
 
+  db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: afm, POSTGRES_PASSWORD: afm-ci, POSTGRES_DB: afm_test}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U afm" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      AFM_DATABASE_URL: postgresql://afm:afm-ci@127.0.0.1:5432/afm_test
+      AFM_TEST_DATABASE_URL: postgresql://afm:afm-ci@127.0.0.1:5432/afm_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ env.PYTHON_VERSION }}", cache: pip}
+      - run: pip install -r requirements.txt
+      - name: The app role used for tenant isolation
+        run: PGPASSWORD=afm-ci psql -h 127.0.0.1 -U afm -d afm_test -c "CREATE ROLE afm_app NOLOGIN; GRANT afm_app TO afm;"
+      - name: Migrations, synthetic data and data-quality checks
+        run: |
+          python afm.py db migrate
+          python afm.py db seed --scale small
+          python afm.py db check
+      - name: Database tests (they reset the database)
+        run: python -m pytest -q tests/db
+
   changelog:
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
@@ -78,7 +106,7 @@ jobs:
         run: |
           changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           echo "$changed"
-          if echo "$changed" | grep -qE '^(src|pipeline|config|backend|server|deploy|tests)/|^afm\.py$' \
+          if echo "$changed" | grep -qE '^(src|pipeline|config|backend|server|deploy|tests|db)/|^afm\.py$' \
              && ! echo "$changed" | grep -qx 'CHANGELOG.md'; then
             echo "::error::Add a line under '## Unreleased' in CHANGELOG.md (STANDARD.md section 6.6)"; exit 1
           fi

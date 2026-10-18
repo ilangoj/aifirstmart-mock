@@ -5,7 +5,7 @@
 import zipfile
 from pipeline.common import ROOT
 
-SKIP_DIRS = {'dist', 'site', '__pycache__', '.pytest_cache', '.ruff_cache', 'results', '.git', '.venv', 'venv'}
+SKIP_DIRS = {'dist', 'site', 'data', '__pycache__', '.pytest_cache', '.ruff_cache', 'results', '.git', '.venv', 'venv'}
 SKIP_FILES = {'.DS_Store', '.env'}       # .env holds secrets; .env.example is kept
 
 

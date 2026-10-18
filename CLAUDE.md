@@ -12,10 +12,11 @@ matter most when an assistant makes the change.
 
 ## While changing
 
-- Edit only `src/`, `config/`, `pipeline/`, `server/`, `backend/`, `deploy/`, `tests/` and `.github/`. Never edit
+- Edit only `src/`, `config/`, `pipeline/`, `server/`, `backend/`, `deploy/`, `db/`, `tests/` and `.github/`. Never edit
   `dist/`; rebuild it.
 - Keep every change inside the modules it is about. No unrelated refactoring or reformatting in the same change.
 - Screen text stays English in module code; Tamil goes into `src/i18n/ta/ui.json` via `python afm.py i18n add`.
+- Never edit a database migration that has been applied; add the next numbered file (`STANDARD.md` step 12).
 - No secrets, keys or passwords in any file. Settings come from environment variables (section 7).
 - Python for tooling; no new languages, frameworks or build tools without the owner's agreement.
 

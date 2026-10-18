@@ -4,6 +4,13 @@ Newest first. For each change: date, modules touched, what changed for the user,
 Each pull request adds its lines under `## Unreleased`; a release moves them under its version (STANDARD.md 6.6).
 
 ## Unreleased
+- 2026-10-17 — **db (new):** PostgreSQL schema in five migrations (tenancy and identity; catalogue and stock ledger;
+  orders, delivery plans, payments, refunds with approvals, shipments; integration: connections, encrypted
+  credentials, listings, webhooks, job queue; tenant isolation with row-level security). Deterministic synthetic
+  data at three scales, 26 data-quality checks. New step `afm.py db migrate|status|seed|check|reset|export`.
+  CI job `db` on PostgreSQL 16; `tests/db` (18 tests). Documents confirmed by owner: STANDARD.md step 12 and
+  sections 2, 6.5, 7, 9, 10, 13; CLAUDE.md; README.md. Tests: `afm.py db check` (26/26) at small, medium and large
+  scale, `pytest tests/db` (18 passed), full `afm.py test`.
 
 ## 1.0.0 — 2026-10-15 — GitHub, CI and deployment
 - **Repository:** prepared for `github.com/ilangoj/aifirstmart-mock` (private): `.gitignore`, `.gitattributes`,
