@@ -4,6 +4,20 @@ Newest first. For each change: date, modules touched, what changed for the user,
 Each pull request adds its lines under `## Unreleased`; a release moves them under its version (STANDARD.md 6.6).
 
 ## Unreleased
+- 2026-10-18 — **deploy, db:** new target `afm.py deploy --target database`: PostgreSQL 16 in Docker on this
+  computer (compose profile `db`, volume `pg-data`, port on 127.0.0.1 only), then a `db-setup` container
+  (new Dockerfile stage `db-tools`) applies the migrations, loads synthetic data into an empty database and runs the
+  checks; safe to run again. `.env` gets `AFM_DB_PASSWORD` (filled in an existing `.env` without touching other
+  values). `db seed --if-empty`. CI job `db-docker` runs the target twice with the real image and checks the data and
+  tenant isolation. Tests: setup container run twice against a fresh database here (26/26 checks both times); CI `db-docker`
+  passed with postgres:16. Documents confirmed by owner: STANDARD.md (step 12, sections 2, 5, 6.5, 7, 8.2), README.md.
+- 2026-10-17 — **db (new):** PostgreSQL schema in five migrations (tenancy and identity; catalogue and stock ledger;
+  orders, delivery plans, payments, refunds with approvals, shipments; integration: connections, encrypted
+  credentials, listings, webhooks, job queue; tenant isolation with row-level security). Deterministic synthetic
+  data at three scales, 26 data-quality checks. New step `afm.py db migrate|status|seed|check|reset|export`.
+  CI job `db` on PostgreSQL 16; `tests/db` (18 tests). Documents confirmed by owner: STANDARD.md step 12 and
+  sections 2, 6.5, 7, 9, 10, 13; CLAUDE.md; README.md. Tests: `afm.py db check` (26/26) at small, medium and large
+  scale, `pytest tests/db` (18 passed), full `afm.py test`.
 
 ## 1.0.0 — 2026-10-15 — GitHub, CI and deployment
 - **Repository:** prepared for `github.com/ilangoj/aifirstmart-mock` (private): `.gitignore`, `.gitattributes`,

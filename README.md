@@ -29,7 +29,8 @@ python afm.py test                        # every browser check and the backend 
 ```bash
 cp .env.example .env                              # then set the secrets in .env
 python afm.py deploy --target docker              # pages at http://127.0.0.1:8080, API at /api/docs
-python afm.py deploy --list                       # local, docker, static, image, cloudrun, ecs, azure, server
+python afm.py deploy --target database            # PostgreSQL in Docker with the schema and synthetic data
+python afm.py deploy --list                       # local, docker, database, static, image, cloudrun, ecs, azure, server
 ```
 
 The same container image runs on any host that runs containers; see STANDARD.md section 8.
@@ -47,6 +48,7 @@ The same container image runs on any host that runs containers; see STANDARD.md 
 | Re-record a narration clip | `python afm.py narrate record --lang ta --clip backoffice-3-start` |
 | Zip the project | `python afm.py package` |
 | Deploy | `python afm.py deploy --target <name> --dry-run`, then without `--dry-run` |
+| Database: schema, synthetic data, checks | `python afm.py db migrate`, `db seed`, `db check` (set `AFM_DATABASE_URL`) |
 | Check a running copy | `python afm.py verify --url http://127.0.0.1:8080` |
 | Start a fix | `git switch -c fix/<module>-<short-description>` |
 

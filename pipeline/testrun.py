@@ -1,4 +1,5 @@
-"""Step: run browser tests, all or only those covering one module (a full run adds the backend and server pytest suites).
+"""Step: run browser tests, all or only those covering one module (a full run adds the backend, server and database pytest suites;
+the database tests run only when AFM_TEST_DATABASE_URL is set).
 
     python afm.py test                                  # everything (+ backend pytest)
     python afm.py test --module phase2                  # only tests that cover phase2
@@ -49,5 +50,7 @@ def run(module=None, test=None, editions=None, langs=None, rebuild=False):
         print('backend      ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
         p = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/server'], cwd=ROOT, capture_output=True, text=True)
         print('server       ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
+        p = subprocess.run([sys.executable, '-m', 'pytest', '-q', 'tests/db'], cwd=ROOT, capture_output=True, text=True)
+        print('database     ', (p.stdout.strip().splitlines() or ['no output'])[-1]); failed += p.returncode != 0
     print(f'\n{total - failed if total else 0}/{total} browser checks passed')
     return 1 if failed else 0

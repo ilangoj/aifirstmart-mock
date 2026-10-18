@@ -9,4 +9,4 @@ extend-exclude = ["dist", "site", "tools"]
 select = ["E9", "F"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/server"]
+testpaths = ["tests/server", "tests/db"]

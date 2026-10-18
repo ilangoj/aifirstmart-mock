@@ -3,6 +3,7 @@ playwright>=1.40
 pillow>=10
 pytest>=7
 ruff>=0.6
+psycopg[binary]>=3.1     # PostgreSQL (afm.py db)
 # Backend and web server: pip install -r backend/requirements.txt
 # Narration (only for `afm.py narrate record`; see STANDARD.md step 4)
 #   English: kokoro-onnx lameenc numpy

@@ -10,6 +10,7 @@
     python afm.py package [--name NAME]                      zip the project (sources, not dist/)
     python afm.py deploy --list | --target NAME [--set k=v] [--dry-run] [--yes] [--out DIR]
     python afm.py verify --url URL                           check a running copy: health, API, every page
+    python afm.py db migrate | status | seed | check | reset --yes | export --out DIR   PostgreSQL schema and synthetic data
 
 See STANDARD.md for the rules and a walk-through of every step.
 """
@@ -79,6 +80,16 @@ def cmd_verify(a):
     return verify(a.url)
 
 
+def cmd_db(a):
+    from pipeline import db
+    if a.action == 'migrate': return db.migrate()
+    if a.action == 'status': return db.status()
+    if a.action == 'seed': return db.seed(a.scale, a.seed, a.if_empty)
+    if a.action == 'check': return db.check()
+    if a.action == 'reset': return db.reset(a.yes)
+    if a.action == 'export': return db.export(a.scale, a.seed, a.out)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest='cmd', required=True)
@@ -98,6 +109,9 @@ def main(argv=None):
     d.add_argument('--dry-run', action='store_true', help='show the commands only'); d.add_argument('--yes', action='store_true', help='do not ask before running')
     d.add_argument('--out', help='output folder for the static target'); d.set_defaults(f=cmd_deploy)
     r = s.add_parser('verify'); r.add_argument('--url', required=True); r.set_defaults(f=cmd_verify)
+    g = s.add_parser('db'); g.add_argument('action', choices=['migrate', 'status', 'seed', 'check', 'reset', 'export'])
+    g.add_argument('--scale', default='small', choices=['small', 'medium', 'large']); g.add_argument('--seed', type=int, default=42)
+    g.add_argument('--yes', action='store_true'); g.add_argument('--if-empty', action='store_true'); g.add_argument('--out', default='data'); g.set_defaults(f=cmd_db)
     a = p.parse_args(argv)
     return a.f(a) or 0
 

@@ -65,8 +65,9 @@ aifirstmart-mock/
 ├── server/
 │   └── app.py                 The web server: built pages at /, the backend API at /api, health at /healthz
 ├── deploy/
-│   ├── Dockerfile             One image: builds the pages, then runs the server
-│   └── docker-compose.yml     Run that image locally, with a data volume and your .env
+│   ├── Dockerfile             One image: builds the pages, then runs the server (stage db-tools: database steps)
+│   ├── docker-compose.yml     Run that image locally, with a data volume and your .env; PostgreSQL (profile db)
+│   └── db-init/               Runs once when the PostgreSQL container is first created (the afm_app role)
 ├── src/                       Everything the pages are built from (edit here)
 │   ├── shell/index.html       The page skeleton: markup with named placeholders
 │   ├── styles/*.css           Style sheets, in load order (NN- prefix)
@@ -85,9 +86,13 @@ aifirstmart-mock/
 │   │       └── narration.json Tamil narration scripts, by clip id
 │   └── audio/{en,ta}/*.mp3    One recording per lesson step
 ├── pipeline/                  One Python module per step (see section 5)
+├── db/
+│   ├── migrations/NNNN_*.sql  PostgreSQL schema, one numbered file per change (never edited once applied)
+│   └── synthetic/             Synthetic data: reference lists, the generator, and the data-quality checks
 ├── tests/
 │   ├── registry.json          Which pages each test checks and which modules it covers
 │   ├── ui/t_*.py              Browser tests (Playwright)
+│   ├── server/, db/           pytest suites for the web server and the database
 │   └── results/               Test output (not shipped)
 ├── tools/tts/                 Voice models for narration (downloaded, not in Git)
 ├── backend/                   Python reference framework (FastAPI), with its own tests
@@ -96,7 +101,7 @@ aifirstmart-mock/
     └── platform/{en,ta}/      Platform only
 ```
 
-What is in Git: everything above except `dist/`, `tests/results/`, `tools/tts/` model files, `.env` and caches
+What is in Git: everything above except `dist/`, `data/` (exported CSV), `tests/results/`, `tools/tts/` model files, `.env` and caches
 (`.gitignore`). Recordings (`src/audio/`, about 21 MB) are in Git as ordinary files; they change rarely.
 
 ---
@@ -338,6 +343,7 @@ python afm.py deploy --list                          # the targets in config/dep
 python afm.py deploy --target local                  # this computer, no Docker: http://127.0.0.1:8080
 python afm.py deploy --target docker                 # this computer, in the container
 python afm.py deploy --target static --out site/     # the four pages as plain files, for any static host
+python afm.py deploy --target database               # PostgreSQL in Docker, with the schema and synthetic data
 python afm.py deploy --target cloudrun --set project=my-gcp-project --set region=asia-south1
 python afm.py verify --url http://127.0.0.1:8080     # health check and every page, against any address
 ```
@@ -350,6 +356,58 @@ Section 8 explains each target. A target that changes anything outside this comp
 The pages hosted as Claude artifacts are published from Claude conversations (links in `config/links.json`).
 Publish the built files from `dist/`: the English training page alone; the Tamil training page together with
 `audio-ta-1.js` and `audio-ta-2.js`; each platform page alone. Run the full test suite first.
+
+### Step 12 — `db`: database schema and synthetic data
+
+The quickest way to a working database is one command, with Docker on your computer:
+
+```bash
+python afm.py deploy --target database        # PostgreSQL 16 + schema + synthetic data + checks
+```
+
+It creates `AFM_DB_PASSWORD` in `.env` if needed, starts PostgreSQL in Docker (reachable from this computer only, at
+`postgresql://afm:<AFM_DB_PASSWORD>@127.0.0.1:5432/afm`), then runs the steps below in a container. Running it again
+keeps the data; `docker compose --env-file .env -f deploy/docker-compose.yml --profile db down -v` starts empty.
+For a larger data set, add `--set scale=medium`. Any other PostgreSQL works the same way with the steps below:
+
+```bash
+export AFM_DATABASE_URL=postgresql://afm:password@127.0.0.1:5432/afm
+python afm.py db migrate                      # apply new files from db/migrations/, in number order
+python afm.py db seed --scale small           # synthetic data into an empty database (small, medium, large);
+                                              # --if-empty skips quietly when data exists
+python afm.py db check                        # the platform's rules, checked against the data
+python afm.py db status                       # migrations applied, row counts
+python afm.py db reset --yes                  # empty the database (refused when AFM_ENV=production)
+python afm.py db export --out data/           # the synthetic data as CSV files; no database needed
+```
+
+- **Schema** (`db/migrations/`): `0001` tenants, locations, staff, roles, customers, audit log; `0002` catalogue,
+  prices, stock and its ledger; `0003` orders, delivery plans, payments, refunds and approvals, shipments; `0004`
+  channel connections, encrypted credentials, listings, webhooks and the job queue; `0005` tenant isolation.
+- **Rules built into the schema:** ids with a type prefix (`ten_`, `ord_` …); money in paise; every tenant row
+  carries `tenant_id` and references `(tenant_id, id)`, so rows cannot point across tenants; price never above MRP;
+  order total = subtotal − discount + delivery fee; a channel's order is stored once; reserved stock never exceeds
+  on hand; channels see `on_hand − buffer − reserved`.
+- **Tenant isolation:** the API will connect as the role `afm_app`, which sees only the tenant set for the request
+  (row-level security). An administrator creates the role once: `CREATE ROLE afm_app NOLOGIN; GRANT afm_app TO afm;`
+  before `db migrate`.
+- **Job queue:** in PostgreSQL. Workers call `claim_jobs(worker, n)`; `finish_job(id, ok, error)` retries failures
+  after 30 s, 1, 2, 4 … minutes and marks a job dead after its last attempt.
+- **Changing the schema:** never edit an applied migration (`db migrate` refuses if one changed). Add the next
+  numbered file, update the generator and the checks if the change affects them, and test (section 9).
+- **Synthetic data** (`db/synthetic/`): the same scale and seed always give the same rows. Three tenants (two
+  retailers, one brand) in Tamil Nadu, the mock's stores and products, all 15 roles, customers, weekly and monthly
+  plans and the orders they generate, payments, refunds with approvals, shipments, and channel activity. Tenants are
+  marked `synthetic`; e-mail addresses use `.example` domains; phone numbers are invented; GST rates are illustrative.
+  Every synthetic staff account signs in with the password printed by `db seed`.
+
+  | Scale | Customers | Orders | Order lines | Load time |
+  |---|---|---|---|---|
+  | small | 1,500 | about 8,000 | about 26,000 | seconds |
+  | medium | 7,500 | about 40,000 | about 130,000 | under 30 s |
+  | large | 30,000 | about 160,000 | about 530,000 | about a minute |
+- **Checks** (`db check`, `db/synthetic/checks.py`): 26 rules, from "stock on hand equals its movements" to "refunds
+  above ₹25,000 have a second approver". Each is a query returning the rows that break it. They run on real data too.
 
 ---
 
@@ -404,6 +462,8 @@ Runs on every push to a branch and on every pull request:
 | `i18n` | `python afm.py i18n check` | The Tamil dictionary or lessons are malformed |
 | `build` | `python afm.py build`, then builds again and compares | A page fails to build, or two builds differ |
 | `test` | `python afm.py test` (all browser checks and backend tests) | Any check fails |
+| `db` | PostgreSQL 16 service: `db migrate`, `db seed`, `db check`, then `pytest tests/db` | A migration fails, a rule is broken, or a database test fails |
+| `db-docker` | `deploy --target database` twice, then queries over the published port | The one-command setup fails, repeats work, or isolation is off |
 | `changelog` | Compares the branch with `main` | Code, config or source changed without a `CHANGELOG.md` entry |
 | `image` | `docker build -f deploy/Dockerfile .` and a `/healthz` check | The container does not build or start |
 
@@ -445,6 +505,10 @@ all of them; copy it to `.env` for local use. `.env` is never committed.
 | `AFM_PLATFORM_ADMIN_EMAIL` / `_PASSWORD` | backend | sample values | **Secret** password |
 | `AFM_DB_PATH` | backend | in memory | A file on a persistent volume, e.g. `/data/afm.sqlite` |
 | `AFM_GOOGLE_CLIENT_IDS` | backend | empty | Comma-separated OAuth client ids |
+| `AFM_DATABASE_URL` | `afm.py db` | none | **Secret** (contains the password). The PostgreSQL address |
+| `AFM_DB_PASSWORD` | `database` target | created by `deploy` | **Secret.** Password of the PostgreSQL container's `afm` user |
+| `AFM_DB_HOST_PORT` | `database` target | `5432` | Port on this computer (127.0.0.1 only) for the PostgreSQL container |
+| `AFM_TEST_DATABASE_URL` | `tests/db` | none | A separate database the tests may empty; never production |
 
 Secrets live in the host's secret store (GitHub Actions secrets, Google Secret Manager, AWS Secrets Manager, Azure
 Key Vault, or a `.env` file readable only by the service on a server) and reach the container as environment
@@ -483,6 +547,7 @@ variables, then from the target's defaults. Adding a cloud means adding an entry
 |---|---|---|---|
 | `local` | This computer | Python | Builds, then runs the server without Docker on port 8080 |
 | `docker` | This computer | Docker | `docker compose -f deploy/docker-compose.yml up --build`; data kept in a volume |
+| `database` | This computer | Docker | Starts PostgreSQL 16, applies the schema, loads synthetic data into an empty database, runs the checks. Safe to repeat; data kept in a volume |
 | `static` | Any static host | — | Copies the built pages and a start page to `--out`; no API |
 | `image` | Any registry | Docker | Builds the image and pushes it to `{registry}/aifirstmart-mock:{version}` |
 | `cloudrun` | Google Cloud Run | `gcloud`, signed in | Deploys the image to a Cloud Run service |
@@ -576,6 +641,16 @@ Edit its words in `src/i18n/<lang>/narration.json` → `narrate record --lang <l
 Add an entry to `config/deploy.json` (copy the closest one), run `python afm.py deploy --target <name> --dry-run`,
 and propose the new row for the table in section 8.2 in the same pull request.
 
+### Change the database schema
+
+1. Branch: `git switch -c feat/db-<short-description>`.
+2. Add `db/migrations/<next number>_<what>.sql`. Never edit a file that has been applied anywhere.
+3. If new tables or columns need data, extend `db/synthetic/generate.py` (keep it deterministic) and add a rule to
+   `db/synthetic/checks.py` if the change brings one.
+4. `python afm.py db reset --yes && python afm.py db migrate && python afm.py db seed && python afm.py db check`,
+   then `python -m pytest tests/db` with `AFM_TEST_DATABASE_URL` set.
+5. `CHANGELOG.md`, commit (`feat(db): …`), pull request.
+
 ### Release checklist
 
 - [ ] `main` is green in CI
@@ -600,6 +675,9 @@ and propose the new row for the table in section 8.2 in the same pull request.
   CI on the pull request, and the `CHANGELOG.md` entry is written.
 - **Backend tests** live in `backend/tests/` (pytest). A new endpoint or rule gets a test there.
 - **Server and deployment**: CI builds the image and checks `/healthz`; `afm.py verify` checks a running address.
+- **Database**: `tests/db` checks that the generator is deterministic, that every data-quality rule passes and catches
+  a broken row, that the schema rejects invalid data, the job queue, and tenant isolation. They need
+  `AFM_TEST_DATABASE_URL` and are skipped without it; CI always runs them.
 
 ---
 
@@ -648,5 +726,8 @@ confirmation; changing the changelog's format does.
   `AFM_NO_TRAINING` in the platform edition.
 - The mock pages do not call the backend yet; they are served beside it. Connecting them is a separate feature.
 - The backend's SQLite store suits one server with a persistent disk. Running several copies, or on a container
-  cloud without a disk, needs a managed database first.
+  cloud without a disk, needs a managed database first. The PostgreSQL schema (`db/`) is ready for that, but the
+  backend does not use it yet: moving the backend onto it is the next step.
+- Some tables are kept for later work and are not filled by the synthetic data: `refresh_tokens` (written at
+  sign-in). Suppliers and purchase orders have no tables yet.
 - The cloud targets in `config/deploy.json` have been checked with `--dry-run` only, not run against a real account.
